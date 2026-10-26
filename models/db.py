@@ -35,11 +35,14 @@ def init_db_engines(config):
     db_ssl_ca = get_val("DB_SSL_CA", "")
 
     query_params = {"charset": "utf8mb4"}
-    if db_ssl_ca:
-        query_params["ssl_ca"] = db_ssl_ca
-    elif db_ssl:
-        query_params["ssl_verify_cert"] = "true"
 
+    if db_ssl_ca:
+     query_params["ssl_ca"] = db_ssl_ca
+     query_params["ssl_verify_cert"] = "true"
+     query_params["ssl_verify_identity"] = "true"
+    elif db_ssl:
+     query_params["ssl_verify_cert"] = "true"
+     query_params["ssl_verify_identity"] = "true"
     from sqlalchemy.engine import URL
 
     app_url = URL.create(
