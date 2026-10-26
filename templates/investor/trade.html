@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block title %}Trade Stocks - StockTrade{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <h2 class="fw-bold mb-1">Trade Stocks</h2>
+  <p class="text-muted mb-0">Place simulated market buy and sell orders.</p>
+</div>
+
+<div id="message" class="alert d-none" role="status"></div>
+
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="card shadow-sm">
+      <div class="card-header fw-semibold">Place Market Order</div>
+      <div class="card-body">
+        <form id="trade-form">
+          <div class="mb-3">
+            <label for="stock" class="form-label">Stock</label>
+            <select id="stock" class="form-select" required>
+              <option value="">Loading stocks...</option>
+              {% for stock in stocks %}
+              <option value="{{ stock.id if stock.id is defined else stock.stock_id }}">
+                {{ stock.symbol }} — {{ stock.company_name }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="side" class="form-label">Order side</label>
+            <select id="side" class="form-select" required>
+              <option value="BUY">Buy</option>
+              <option value="SELL">Sell</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="quantity" class="form-label">Quantity</label>
+            <input id="quantity" class="form-control" type="number" min="1" step="1" required>
+          </div>
+          <button class="btn btn-primary w-100" id="submit-order" type="submit">Place Order</button>
+        </form>
+        <p class="small text-muted mt-3 mb-0">
+          Orders execute against simulated market prices. Available cash, holdings, and brokerage rules are enforced by the backend.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card shadow-sm">
+      <div class="card-header fw-semibold">Current Market Prices</div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead><tr><th>Symbol</th><th>Company</th><th>Price</th><th>Exchange</th></tr></thead>
+            <tbody id="market-rows">
+              <tr><td colspan="4" class="text-muted">Loading market prices...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="refresh-market">Refresh Prices</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const csrf = document.querySelector('meta[name="csrf-token"]')?.content
+    || document.querySelector('meta[name="csrf_token"]')?.content || "";
+
+  const esc = v => String(v ?? "—").replace(/[&<>"']/g, c => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
+  })[c]);
+
+  const money = v => {
+    const n = Number(v);
+    return Number.isFinite(n) ? "₹" + n.toLocaleString("en-IN", {
+      minimumFractionDigits:2, maximumFractionDigits:2
+    }) : "—";
+  };
+
+  async function api(url, options = {}) {
+    const headers = {...(options.body ? {"Content-Type":"application/json"} : {}), ...options.headers};
+    if (csrf) headers["X-CSRFToken"] = csrf;
+    const res = await fetch(url, {...options, headers, credentials:"same-origin"});
+    const body = await res.json();
+    if (!res.ok || body.ok === false) {
+      throw new Error(body.error?.message || `Request failed (${res.status})`);
+    }
+    return body.data;
+  }
+
+  function showMessage(text, error = false) {
+    $("message").textContent = text;
+    $("message").className = `alert ${error ? "alert-danger" : "alert-success"}`;
+  }
+
+  async function loadMarket() {
+    try {
+      const data = await api("/market/api/v1/market/prices");
+      const stocks = Array.isArray(data) ? data : (data.stocks || data.items || []);
+      $("market-rows").innerHTML = stocks.length ? stocks.map(s => `
+        <tr>
+          <td class="fw-semibold">${esc(s.symbol)}</td>
+          <td>${esc(s.company_name)}</td>
+          <td>${esc(money(s.current_price ?? s.price ?? s.reference_price))}</td>
+          <td>${esc(s.exchange)}</td>
+        </tr>
+      `).join("") : '<tr><td colspan="4" class="text-muted">No market data returned by the API.</td></tr>';
+    } catch (e) {
+      $("market-rows").innerHTML = `<tr><td colspan="4" class="text-danger">${esc(e.message)}</td></tr>`;
+    }
+  }
+
+  $("trade-form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const stockId = Number($("stock").value);
+    const quantity = Number($("quantity").value);
+    if (!Number.isInteger(stockId) || stockId <= 0) {
+      showMessage("Select a valid stock.", true);
+      return;
+    }
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      showMessage("Quantity must be a positive whole number.", true);
+      return;
+    }
+
+    $("submit-order").disabled = true;
+    try {
+      const result = await api("/investor/api/v1/investor/orders", {
+        method:"POST",
+        body:JSON.stringify({
+          stock_id:stockId,
+          side:$("side").value,
+          quantity:quantity,
+          idempotency_key:crypto.randomUUID()
+        })
+      });
+      showMessage(result.message || "Order request completed. Check your transactions for execution details.");
+      await loadMarket();
+    } catch (err) {
+      showMessage(err.message, true);
+    } finally {
+      $("submit-order").disabled = false;
+    }
+  });
+
+  $("refresh-market").addEventListener("click", loadMarket);
+  loadMarket();
+})();
+</script>
+{% endblock %}

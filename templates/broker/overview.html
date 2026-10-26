@@ -1,0 +1,106 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Broker Overview - StockTrade{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+  <div>
+    <h2 class="fw-bold mb-1">Broker Overview</h2>
+    <p class="text-muted mb-0">Monitor market activity and access your client and commission tools.</p>
+  </div>
+  <a href="{{ url_for('broker.clients') }}" class="btn btn-primary">Manage Clients</a>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small mb-2">Client Management</div>
+        <h5 class="fw-semibold">Investor Accounts</h5>
+        <p class="small text-muted">Onboard investors, review assigned clients, and manage broker-client relationships.</p>
+        <a href="{{ url_for('broker.clients') }}" class="btn btn-sm btn-outline-primary">Open Clients</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small mb-2">Commission Reporting</div>
+        <h5 class="fw-semibold">Broker Analytics</h5>
+        <p class="small text-muted">Review earned commissions, trading activity, monthly trends, and top clients.</p>
+        <a href="{{ url_for('broker.analytics') }}" class="btn btn-sm btn-outline-primary">View Analytics</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small mb-2">Market Information</div>
+        <h5 class="fw-semibold">Listed Companies</h5>
+        <p class="small text-muted">Review the current market data available on the simulated trading platform.</p>
+        <a href="{{ url_for('market.overview') }}" class="btn btn-sm btn-outline-primary">Open Market</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span class="fw-semibold">Market Overview</span>
+    <span class="text-muted small">{{ stocks|length }} listed records</span>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>Symbol</th>
+            <th>Company</th>
+            <th>Sector</th>
+            <th>Exchange</th>
+            <th>Price (₹)</th>
+            <th>Change (%)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for stock in stocks %}
+          <tr>
+            <td class="fw-semibold">
+              <a href="{{ url_for('market.detail', symbol=stock.symbol) }}" class="text-decoration-none">
+                {{ stock.symbol }}
+              </a>
+            </td>
+            <td>{{ stock.company_name }}</td>
+            <td>{{ stock.sector }}</td>
+            <td>{{ stock.exchange }}</td>
+            <td>
+              {% if stock.current_price is defined and stock.current_price is not none %}
+                ₹{{ "%.2f"|format(stock.current_price|float) }}
+              {% elif stock.price is defined and stock.price is not none %}
+                ₹{{ "%.2f"|format(stock.price|float) }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td>
+              {% if stock.change_pct is defined and stock.change_pct is not none %}
+                <span class="{% if stock.change_pct|float > 0 %}text-success{% elif stock.change_pct|float < 0 %}text-danger{% endif %}">
+                  {{ "%.2f"|format(stock.change_pct|float) }}%
+                </span>
+              {% elif stock.change_percent is defined and stock.change_percent is not none %}
+                {{ "%.2f"|format(stock.change_percent|float) }}%
+              {% else %}
+                —
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="text-center text-muted py-4">No market records are currently available.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="small text-muted mb-0">Market values are supplied by the application backend. This page does not generate or hard-code prices.</p>
+  </div>
+</div>
+{% endblock %}

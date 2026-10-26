@@ -1,0 +1,94 @@
+﻿{% extends "base.html" %}
+{% import "macros/components.html" as ui %}
+
+{% block title %}My Broker - StockTrade{% endblock %}
+
+{% block content %}
+{{ ui.page_header("My Broker", "View your assigned broker and the platform's simulated brokerage policy") }}
+
+<div class="row g-3 mb-4">
+  <div class="col-md-6">
+    <div class="card shadow-sm border h-100">
+      <div class="card-header bg-white py-3">
+        <h6 class="mb-0 fw-bold" style="color: var(--navy);">Assigned Broker</h6>
+      </div>
+      <div class="card-body" id="broker-details">
+        <p class="text-muted mb-0">Loading broker details...</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card shadow-sm border h-100">
+      <div class="card-header bg-white py-3">
+        <h6 class="mb-0 fw-bold" style="color: var(--navy);">Brokerage Policy</h6>
+      </div>
+      <div class="card-body" id="brokerage-policy">
+        <p class="text-muted mb-0">Loading brokerage policy...</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="d-flex flex-wrap gap-2">
+  <a href="{{ url_for('investor.dashboard') }}" class="btn btn-outline-secondary btn-sm">Back to Dashboard</a>
+  <a href="{{ url_for('investor.transactions') }}" class="btn btn-outline-primary btn-sm">Transaction History</a>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", async () => {
+  const details = document.getElementById("broker-details");
+  const policyBox = document.getElementById("brokerage-policy");
+
+  const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[ch]);
+
+  try {
+    const response = await fetch("{{ url_for('investor.api_investor_broker') }}");
+    const result = await response.json();
+
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error?.message || "Could not load broker details.");
+    }
+
+    const broker = result.data?.broker;
+    const policy = result.data?.policy || {};
+
+    if (broker) {
+      details.innerHTML = `
+        <dl class="row mb-0">
+          <dt class="col-sm-5 text-muted">Name</dt>
+          <dd class="col-sm-7">${esc(broker.name || broker.full_name || broker.username || "Assigned broker")}</dd>
+          <dt class="col-sm-5 text-muted">Username</dt>
+          <dd class="col-sm-7">${esc(broker.username || "—")}</dd>
+          <dt class="col-sm-5 text-muted">Email</dt>
+          <dd class="col-sm-7">${esc(broker.email || "—")}</dd>
+          <dt class="col-sm-5 text-muted">Status</dt>
+          <dd class="col-sm-7">${esc(broker.status || "—")}</dd>
+        </dl>`;
+    } else {
+      details.innerHTML = '<p class="text-muted mb-0">No broker is currently assigned to your account.</p>';
+    }
+
+    const rate = Number(policy.brokerage_rate_pct ?? policy.rate_pct ?? 0.10);
+    const minFee = Number(policy.brokerage_min_fee ?? policy.min_fee ?? 1);
+    const commission = Number(policy.broker_commission_rate_pct ?? 40);
+
+    policyBox.innerHTML = `
+      <dl class="row mb-0">
+        <dt class="col-sm-7 text-muted">Investor brokerage rate</dt>
+        <dd class="col-sm-5 text-end">${esc(rate)}%</dd>
+        <dt class="col-sm-7 text-muted">Minimum fee per trade</dt>
+        <dd class="col-sm-5 text-end">${esc(minFee.toLocaleString("en-IN", {style:"currency", currency:"INR"}))}</dd>
+        <dt class="col-sm-7 text-muted">Broker commission share</dt>
+        <dd class="col-sm-5 text-end">${esc(commission)}%</dd>
+      </dl>
+      <p class="text-muted small mt-3 mb-0">${esc(policy.description || "Simulated brokerage policy for this academic trading platform.")}</p>`;
+  } catch (error) {
+    details.textContent = error.message;
+    policyBox.textContent = "Brokerage policy could not be loaded.";
+  }
+});
+</script>
+{% endblock %}

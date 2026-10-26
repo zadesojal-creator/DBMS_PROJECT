@@ -16,6 +16,7 @@ ENV/
 *.pem
 *.key
 *.crt
+*.env.aiven
 
 # Node & Frontend dependencies
 node_modules/

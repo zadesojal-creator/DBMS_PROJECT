@@ -1,0 +1,66 @@
+@'
+{% extends "base.html" %}
+{% import "macros/components.html" as ui %}
+
+{% block title %}My Portfolio - StockTrade{% endblock %}
+
+{% block content %}
+{{ ui.page_header("My Portfolio", "Review your holdings and unrealized profit or loss") }}
+
+{% set cash = account.virtual_balance if account else 0 %}
+{% set holdings_value = holdings | sum(attribute='market_value') %}
+{% set total_pnl = holdings | sum(attribute='unrealized_pnl') %}
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    {{ ui.kpi_tile("Portfolio Value", (cash + holdings_value) | inr, "Cash + holdings market value") }}
+  </div>
+  <div class="col-md-4">
+    {{ ui.kpi_tile("Holdings Value", holdings_value | inr, (holdings | length) ~ " active positions") }}
+  </div>
+  <div class="col-md-4">
+    {{ ui.kpi_tile("Unrealized P&L", total_pnl | inr, "Open position gains or losses", total_pnl >= 0) }}
+  </div>
+</div>
+
+<div class="card shadow-sm border mb-4">
+  <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+    <h6 class="mb-0 fw-bold" style="color: var(--navy);">Current Holdings</h6>
+    <a href="{{ url_for('investor.trade') }}" class="btn btn-primary btn-sm">Trade Stocks</a>
+  </div>
+  <div class="table-responsive">
+    {% if holdings %}
+    <table class="table-data table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Symbol</th><th class="num">Quantity</th><th class="num">Average Cost</th>
+          <th class="num">Current Price</th><th class="num">Market Value</th>
+          <th class="num">Unrealized P&L</th><th class="num">Return %</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for h in holdings %}
+        <tr>
+          <td class="fw-bold">{{ h.symbol }}</td>
+          <td class="num">{{ h.quantity | qty }}</td>
+          <td class="num">{{ h.avg_cost | inr }}</td>
+          <td class="num">{{ h.current_price | inr }}</td>
+          <td class="num fw-bold">{{ h.market_value | inr }}</td>
+          <td class="num {% if h.unrealized_pnl >= 0 %}text-gain{% else %}text-loss{% endif %}">{{ h.unrealized_pnl | inr }}</td>
+          <td class="num {% if (h.return_pct or 0) >= 0 %}text-gain{% else %}text-loss{% endif %}">{{ h.return_pct | pct }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    {{ ui.empty_state("No holdings yet", "Your purchased shares will appear here after a successful trade.", url_for('market.overview'), "Browse Market") }}
+    {% endif %}
+  </div>
+</div>
+
+<div class="d-flex flex-wrap gap-2">
+  <a href="{{ url_for('investor.dashboard') }}" class="btn btn-outline-secondary btn-sm">Back to Dashboard</a>
+  <a href="{{ url_for('investor.transactions') }}" class="btn btn-outline-primary btn-sm">View Transactions</a>
+</div>
+{% endblock %}
+'@ | Set-Content -Encoding utf8 .\templates\investor\portfolio.html

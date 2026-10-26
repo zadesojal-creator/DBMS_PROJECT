@@ -1,0 +1,119 @@
+﻿{% extends "base.html" %}
+{% import "macros/components.html" as ui %}
+
+{% block title %}My Watchlist - StockTrade{% endblock %}
+
+{% block content %}
+{{ ui.page_header("My Watchlist", "Track selected stocks and monitor their latest market prices") }}
+
+<div class="card shadow-sm border mb-4">
+  <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+    <h6 class="mb-0 fw-bold" style="color: var(--navy);">Saved Stocks</h6>
+    <a href="{{ url_for('market.overview') }}" class="btn btn-primary btn-sm">Browse Market</a>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table-data table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Symbol</th>
+          <th>Company</th>
+          <th class="num">Current Price</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="watchlist-body">
+        <tr><td colspan="4" class="text-center py-4 text-muted">Loading watchlist...</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div id="watchlist-message" class="small text-muted p-3"></div>
+</div>
+
+<div class="d-flex flex-wrap gap-2">
+  <a href="{{ url_for('investor.dashboard') }}" class="btn btn-outline-secondary btn-sm">Back to Dashboard</a>
+  <a href="{{ url_for('investor.broker') }}" class="btn btn-outline-primary btn-sm">My Broker</a>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", async () => {
+  const body = document.getElementById("watchlist-body");
+  const message = document.getElementById("watchlist-message");
+
+  const formatINR = value => {
+    const number = Number(value);
+    return Number.isFinite(number)
+      ? number.toLocaleString("en-IN", { style: "currency", currency: "INR" })
+      : "—";
+  };
+
+  const escapeHTML = value => String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[char]);
+
+  try {
+    const response = await fetch("{{ url_for('investor.api_get_watchlist') }}");
+    const result = await response.json();
+
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error?.message || "Could not load watchlist.");
+    }
+
+    const items = result.data || [];
+    body.replaceChildren();
+
+    if (!items.length) {
+      body.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">No saved stocks yet. Browse the market to get started.</td></tr>';
+      return;
+    }
+
+    for (const item of items) {
+      const symbol = item.symbol ?? item.stock_symbol ?? "—";
+      const company = item.company_name ?? item.name ?? "—";
+      const price = item.current_price ?? item.price;
+      const stockId = Number(item.stock_id ?? item.id);
+
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td class="fw-bold">${escapeHTML(symbol)}</td>
+        <td>${escapeHTML(company)}</td>
+        <td class="num fw-semibold">${formatINR(price)}</td>
+        <td>
+          <button type="button" class="btn btn-outline-danger btn-sm remove-stock"
+            data-stock-id="${Number.isSafeInteger(stockId) ? stockId : ""}">
+            Remove
+          </button>
+        </td>`;
+      body.appendChild(row);
+    }
+  } catch (error) {
+    body.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-danger">Unable to load watchlist.</td></tr>';
+    message.textContent = error.message;
+  }
+
+  body.addEventListener("click", async event => {
+    const button = event.target.closest(".remove-stock");
+    if (!button || !button.dataset.stockId) return;
+
+    button.disabled = true;
+    try {
+      const response = await fetch(
+        "{{ url_for('investor.api_remove_watchlist', stock_id=0) }}".replace(/0$/, button.dataset.stockId),
+        { method: "DELETE" }
+      );
+      const result = await response.json();
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error?.message || "Could not remove stock.");
+      }
+      button.closest("tr").remove();
+      if (!body.querySelector("tr")) {
+        body.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">Your watchlist is empty.</td></tr>';
+      }
+    } catch (error) {
+      message.textContent = error.message;
+      button.disabled = false;
+    }
+  });
+});
+</script>
+{% endblock %}

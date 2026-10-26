@@ -1,0 +1,211 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Company Management - StockTrade{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+  <div>
+    <h2 class="fw-bold mb-1">Company Management</h2>
+    <p class="text-muted mb-0">Manage listed companies and their market reference prices.</p>
+  </div>
+  <button class="btn btn-primary" id="show-create">+ Add Company</button>
+</div>
+
+<div id="message" class="alert d-none" role="status"></div>
+
+<div class="card shadow-sm mb-4" id="create-panel" hidden>
+  <div class="card-header fw-semibold">Add Company</div>
+  <div class="card-body">
+    <form id="create-form">
+      <div class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label" for="symbol">Symbol</label>
+          <input class="form-control" id="symbol" required maxlength="20" placeholder="e.g. ABC">
+        </div>
+        <div class="col-md-5">
+          <label class="form-label" for="company-name">Company name</label>
+          <input class="form-control" id="company-name" required maxlength="150">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label" for="sector">Sector</label>
+          <input class="form-control" id="sector" required maxlength="100">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label" for="exchange">Exchange</label>
+          <select class="form-select" id="exchange">
+            <option>NSE</option><option>BSE</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label" for="reference-price">Reference price (₹)</label>
+          <input class="form-control" id="reference-price" type="number" min="0.01" step="0.01" value="100" required>
+        </div>
+      </div>
+      <div class="d-flex gap-2 mt-3">
+        <button class="btn btn-primary" type="submit">Create Company</button>
+        <button class="btn btn-outline-secondary" type="button" id="cancel-create">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <form id="filter-form" class="row g-2 mb-3">
+      <div class="col-md-5">
+        <input class="form-control" id="search" placeholder="Search symbol or company name">
+      </div>
+      <div class="col-md-4">
+        <input class="form-control" id="sector-filter" placeholder="Filter by sector">
+      </div>
+      <div class="col-auto"><button class="btn btn-outline-primary" type="submit">Search</button></div>
+      <div class="col-auto"><button class="btn btn-outline-secondary" id="reset-filter" type="button">Reset</button></div>
+    </form>
+
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr><th>Symbol</th><th>Company</th><th>Sector</th><th>Exchange</th><th>Price</th><th>Status</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="company-rows">
+          <tr><td colspan="7" class="text-muted p-3">Loading companies...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small text-muted mb-0">Deleting a company is permanent and may be blocked when dependent trading records exist.</p>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const base = "/admin/api/v1/admin/companies";
+  const csrf = document.querySelector('meta[name="csrf-token"]')?.content
+    || document.querySelector('meta[name="csrf_token"]')?.content || "";
+
+  const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
+  })[c]);
+
+  async function request(url, options = {}) {
+    const headers = { ...(options.body ? {"Content-Type":"application/json"} : {}), ...options.headers };
+    if (csrf) headers["X-CSRFToken"] = csrf;
+    const res = await fetch(url, {...options, headers, credentials:"same-origin"});
+    const body = await res.json();
+    if (!res.ok || body.ok === false) throw new Error(body.error?.message || `Request failed (${res.status})`);
+    return body.data;
+  }
+
+  function message(text, error = false) {
+    $("message").textContent = text;
+    $("message").className = `alert ${error ? "alert-danger" : "alert-success"}`;
+  }
+
+  async function load() {
+    $("company-rows").innerHTML = '<tr><td colspan="7" class="text-muted p-3">Loading...</td></tr>';
+    try {
+      const params = new URLSearchParams();
+      if ($("search").value.trim()) params.set("search", $("search").value.trim());
+      if ($("sector-filter").value.trim()) params.set("sector", $("sector-filter").value.trim());
+      const rows = await request(`${base}?${params}`);
+      $("company-rows").innerHTML = rows.length ? rows.map(s => `
+        <tr data-id="${esc(s.id ?? s.stock_id)}">
+          <td class="fw-semibold">${esc(s.symbol)}</td>
+          <td>${esc(s.company_name)}</td>
+          <td>${esc(s.sector)}</td>
+          <td>${esc(s.exchange)}</td>
+          <td>${esc(s.current_price ?? s.price ?? s.reference_price ?? "—")}</td>
+          <td>${esc(s.status ?? "—")}</td>
+          <td>
+            <div class="d-flex flex-wrap gap-1">
+              <button class="btn btn-sm btn-outline-primary edit" type="button">Edit</button>
+              <button class="btn btn-sm btn-outline-danger delete" type="button">Delete</button>
+            </div>
+          </td>
+        </tr>`).join("") :
+        '<tr><td colspan="7" class="text-muted p-3">No companies found.</td></tr>';
+    } catch (e) {
+      $("company-rows").innerHTML = `<tr><td colspan="7" class="text-danger p-3">${esc(e.message)}</td></tr>`;
+    }
+  }
+
+  $("show-create").addEventListener("click", () => { $("create-panel").hidden = false; });
+  $("cancel-create").addEventListener("click", () => { $("create-panel").hidden = true; });
+  $("filter-form").addEventListener("submit", e => { e.preventDefault(); load(); });
+  $("reset-filter").addEventListener("click", () => {
+    $("search").value = "";
+    $("sector-filter").value = "";
+    load();
+  });
+
+  $("create-form").addEventListener("submit", async e => {
+    e.preventDefault();
+    try {
+      const data = await request(base, {
+        method:"POST",
+        body:JSON.stringify({
+          symbol:$("symbol").value.trim(),
+          company_name:$("company-name").value.trim(),
+          sector:$("sector").value.trim(),
+          exchange:$("exchange").value,
+          reference_price:Number($("reference-price").value)
+        })
+      });
+      message(data.message || "Company created.");
+      $("create-form").reset();
+      $("reference-price").value = "100";
+      $("create-panel").hidden = true;
+      await load();
+    } catch (err) { message(err.message, true); }
+  });
+
+  $("company-rows").addEventListener("click", async e => {
+    const row = e.target.closest("tr[data-id]");
+    if (!row) return;
+    const id = row.dataset.id;
+    const cells = row.querySelectorAll("td");
+    const symbol = cells[0].textContent;
+    const company = cells[1].textContent;
+    const sector = cells[2].textContent;
+    const status = cells[5].textContent;
+
+    if (e.target.closest(".edit")) {
+      const companyName = prompt("Company name:", company);
+      if (companyName === null) return;
+      const newSector = prompt("Sector:", sector);
+      if (newSector === null) return;
+      const newStatus = prompt("Status (ACTIVE or INACTIVE):", status);
+      if (newStatus === null) return;
+      const normalized = newStatus.trim().toUpperCase();
+      if (!["ACTIVE", "INACTIVE"].includes(normalized)) {
+        message("Status must be ACTIVE or INACTIVE.", true);
+        return;
+      }
+      try {
+        const result = await request(`${base}/${encodeURIComponent(id)}`, {
+          method:"PUT",
+          body:JSON.stringify({
+            company_name:companyName.trim(),
+            sector:newSector.trim(),
+            status:normalized
+          })
+        });
+        message(result.message || `Updated ${symbol}.`);
+        await load();
+      } catch (err) { message(err.message, true); }
+    }
+
+    if (e.target.closest(".delete")) {
+      if (!confirm(`Permanently delete ${symbol} (${company})? This cannot be undone.`)) return;
+      try {
+        const result = await request(`${base}/${encodeURIComponent(id)}`, {method:"DELETE"});
+        message(result.message || `Deleted ${symbol}.`);
+        await load();
+      } catch (err) { message(err.message, true); }
+    }
+  });
+
+  load();
+})();
+</script>
+{% endblock %}

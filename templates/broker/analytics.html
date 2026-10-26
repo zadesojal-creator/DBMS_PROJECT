@@ -1,0 +1,181 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Broker Analytics - StockTrade{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+  <div>
+    <h2 class="fw-bold mb-1">Commission Analytics</h2>
+    <p class="text-muted mb-0">Track brokerage earnings and trading activity for your assigned clients.</p>
+  </div>
+  <button type="button" class="btn btn-outline-primary" id="refresh">Refresh Data</button>
+</div>
+
+<div id="message" class="alert d-none" role="status"></div>
+
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-xl-3">
+    <div class="card shadow-sm h-100"><div class="card-body">
+      <div class="text-muted small">Total Commission</div>
+      <div class="fs-4 fw-bold" id="total-commission">—</div>
+    </div></div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="card shadow-sm h-100"><div class="card-body">
+      <div class="text-muted small">Today's Commission</div>
+      <div class="fs-4 fw-bold" id="today-commission">—</div>
+    </div></div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="card shadow-sm h-100"><div class="card-body">
+      <div class="text-muted small">This Month</div>
+      <div class="fs-4 fw-bold" id="month-commission">—</div>
+    </div></div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="card shadow-sm h-100"><div class="card-body">
+      <div class="text-muted small">Total Trades</div>
+      <div class="fs-4 fw-bold" id="total-trades">—</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-7">
+    <div class="card shadow-sm h-100">
+      <div class="card-header fw-semibold">Monthly Commission Trend</div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead><tr><th>Month</th><th>Trades</th><th>Commission</th></tr></thead>
+            <tbody id="monthly-rows">
+              <tr><td colspan="3" class="text-muted">Loading analytics...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card shadow-sm h-100">
+      <div class="card-header fw-semibold">Top Clients by Commission</div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead><tr><th>Investor</th><th>Trades</th><th>Commission</th></tr></thead>
+            <tbody id="client-rows">
+              <tr><td colspan="3" class="text-muted">Loading clients...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-header fw-semibold">Investor Commission Breakdown</div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead><tr><th>Investor</th><th>Trades</th><th>Commission</th></tr></thead>
+        <tbody id="investor-rows">
+          <tr><td colspan="3" class="text-muted">Loading breakdown...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-header fw-semibold">Trade Analysis</div>
+  <div class="card-body">
+    <pre id="trade-analysis" class="mb-0 text-body" style="white-space:pre-wrap;overflow-wrap:anywhere">Loading trade analysis...</pre>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const endpoint = "/broker/api/v1/broker/analytics";
+  const csrf = document.querySelector('meta[name="csrf-token"]')?.content
+    || document.querySelector('meta[name="csrf_token"]')?.content || "";
+
+  const esc = v => String(v ?? "—").replace(/[&<>"']/g, c => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
+  })[c]);
+
+  const money = value => {
+    const n = Number(value);
+    return Number.isFinite(n) ? "₹" + n.toLocaleString("en-IN", {
+      minimumFractionDigits:2, maximumFractionDigits:2
+    }) : "—";
+  };
+
+  async function load() {
+    $("message").className = "alert d-none";
+    $("refresh").disabled = true;
+    try {
+      const headers = {};
+      if (csrf) headers["X-CSRFToken"] = csrf;
+      const response = await fetch(endpoint, {
+        headers, credentials:"same-origin"
+      });
+      const body = await response.json();
+      if (!response.ok || body.ok === false) {
+        throw new Error(body.error?.message || `Request failed (${response.status})`);
+      }
+
+      const d = body.data || {};
+      $("total-commission").textContent = money(d.total_commission ?? d.total_commissions);
+      $("today-commission").textContent = money(d.today_commission);
+      $("month-commission").textContent = money(d.this_month_commission);
+      $("total-trades").textContent = Number.isFinite(Number(d.total_trades))
+        ? Number(d.total_trades).toLocaleString("en-IN") : "—";
+
+      const monthly = Array.isArray(d.monthly_trend) ? d.monthly_trend : [];
+      $("monthly-rows").innerHTML = monthly.length ? monthly.map(m => `
+        <tr><td>${esc(m.month)}</td><td>${esc(m.trades)}</td><td>${esc(money(m.commission))}</td></tr>
+      `).join("") : '<tr><td colspan="3" class="text-muted">No monthly trend data available.</td></tr>';
+
+      const clients = Array.isArray(d.top_clients) ? d.top_clients : [];
+      $("client-rows").innerHTML = clients.length ? clients.map(c => `
+        <tr>
+          <td>${esc(c.investor_name ?? c.investor_id)}</td>
+          <td>${esc(c.trades)}</td>
+          <td>${esc(money(c.commission))}</td>
+        </tr>
+      `).join("") : '<tr><td colspan="3" class="text-muted">No client commission data available.</td></tr>';
+
+      const breakdown = Array.isArray(d.investor_commissions) ? d.investor_commissions : [];
+      $("investor-rows").innerHTML = breakdown.length ? breakdown.map(c => `
+        <tr>
+          <td>${esc(c.investor_name ?? c.full_name ?? c.username ?? c.investor_id)}</td>
+          <td>${esc(c.trades ?? c.trade_count)}</td>
+          <td>${esc(money(c.commission ?? c.commission_generated ?? c.total_commission))}</td>
+        </tr>
+      `).join("") : '<tr><td colspan="3" class="text-muted">No investor breakdown was returned by the API.</td></tr>';
+
+      const analysis = d.trade_analysis;
+      $("trade-analysis").textContent = analysis && typeof analysis === "object"
+        ? JSON.stringify(analysis, null, 2)
+        : (analysis == null ? "No trade analysis data available." : String(analysis));
+    } catch (e) {
+      $("message").textContent = e.message;
+      $("message").className = "alert alert-danger";
+      ["total-commission","today-commission","month-commission","total-trades"]
+        .forEach(id => $(id).textContent = "Unavailable");
+      $("monthly-rows").innerHTML = `<tr><td colspan="3" class="text-danger">${esc(e.message)}</td></tr>`;
+      $("client-rows").innerHTML = `<tr><td colspan="3" class="text-danger">${esc(e.message)}</td></tr>`;
+      $("investor-rows").innerHTML = `<tr><td colspan="3" class="text-danger">${esc(e.message)}</td></tr>`;
+      $("trade-analysis").textContent = "Analytics could not be loaded.";
+    } finally {
+      $("refresh").disabled = false;
+    }
+  }
+
+  $("refresh").addEventListener("click", load);
+  load();
+})();
+</script>
+{% endblock %}

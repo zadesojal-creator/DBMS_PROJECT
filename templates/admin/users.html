@@ -1,0 +1,187 @@
+﻿{% extends "base.html" %}
+
+{% block title %}User Management - StockTrade{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+  <div>
+    <h2 class="fw-bold mb-1">User Management</h2>
+    <p class="text-muted mb-0">Manage platform accounts, roles, statuses and login lockouts.</p>
+  </div>
+  <button type="button" class="btn btn-outline-primary" id="refresh">Refresh</button>
+</div>
+
+<div id="message" class="alert d-none" role="status"></div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <form id="filters" class="row g-3 align-items-end">
+      <div class="col-md-4">
+        <label for="role" class="form-label">Role</label>
+        <select id="role" class="form-select">
+          <option value="">All roles</option>
+          <option value="ADMIN">Admin</option>
+          <option value="BROKER">Broker</option>
+          <option value="INVESTOR">Investor</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label for="status" class="form-label">Account status</label>
+        <select id="status" class="form-select">
+          <option value="">All statuses</option>
+          <option value="ACTIVE">Active</option>
+          <option value="INACTIVE">Inactive</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-primary" type="submit">Apply Filters</button>
+        <button class="btn btn-outline-secondary" id="reset" type="button">Reset</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Username</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Account Details</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="user-rows">
+          <tr><td colspan="8" class="text-muted p-3">Loading users...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small text-muted mb-0">Changes are applied immediately. Avoid deactivating your own administrator account.</p>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const base = "/admin/api/v1/admin/users";
+  const csrf = document.querySelector('meta[name="csrf-token"]')?.content
+    || document.querySelector('meta[name="csrf_token"]')?.content || "";
+
+  const esc = v => String(v ?? "—").replace(/[&<>"']/g, c => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
+  })[c]);
+
+  async function request(url, options = {}) {
+    const headers = {...(options.body ? {"Content-Type":"application/json"} : {}), ...options.headers};
+    if (csrf) headers["X-CSRFToken"] = csrf;
+    const res = await fetch(url, {...options, headers, credentials:"same-origin"});
+    const body = await res.json();
+    if (!res.ok || body.ok === false) {
+      throw new Error(body.error?.message || `Request failed (${res.status})`);
+    }
+    return body.data;
+  }
+
+  function showMessage(text, error = false) {
+    $("message").textContent = text;
+    $("message").className = `alert ${error ? "alert-danger" : "alert-success"}`;
+  }
+
+  async function loadUsers() {
+    $("user-rows").innerHTML = '<tr><td colspan="8" class="text-muted p-3">Loading users...</td></tr>';
+    const params = new URLSearchParams();
+    if ($("role").value) params.set("role", $("role").value);
+    if ($("status").value) params.set("status", $("status").value);
+
+    try {
+      const users = await request(`${base}?${params.toString()}`);
+      $("user-rows").innerHTML = users.length ? users.map(u => {
+        const id = u.id ?? u.user_id;
+        const status = String(u.status ?? "UNKNOWN").toUpperCase();
+        const active = status === "ACTIVE";
+        return `
+          <tr data-id="${esc(id)}" data-status="${esc(status)}">
+            <td>${esc(id)}</td>
+            <td class="fw-semibold">${esc(u.username)}</td>
+            <td>${esc(u.full_name ?? u.name ?? "—")}</td>
+            <td>${esc(u.email)}</td>
+            <td><span class="badge text-bg-secondary">${esc(u.role)}</span></td>
+            <td><span class="badge ${active ? "text-bg-success" : status === "INACTIVE" ? "text-bg-danger" : "text-bg-secondary"}">${esc(status)}</span></td>
+            <td class="small">
+              <div>Created: ${esc(u.created_at)}</div>
+              <div>Last login: ${esc(u.last_login ?? "—")}</div>
+              <div>Failed logins: ${esc(u.failed_login_attempts ?? u.failed_attempts ?? "—")}</div>
+            </td>
+            <td>
+              <div class="d-flex flex-wrap gap-1">
+                <button type="button" class="btn btn-sm ${active ? "btn-outline-danger" : "btn-outline-success"} status-action"
+                  data-next="${active ? "INACTIVE" : "ACTIVE"}"
+                  ${id == null ? "disabled" : ""}>
+                  ${active ? "Deactivate" : "Activate"}
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-warning reset-lockout"
+                  ${id == null ? "disabled" : ""}>Reset Lockout</button>
+              </div>
+            </td>
+          </tr>`;
+      }).join("") : '<tr><td colspan="8" class="text-muted p-3">No users match these filters.</td></tr>';
+    } catch (e) {
+      $("user-rows").innerHTML = `<tr><td colspan="8" class="text-danger p-3">${esc(e.message)}</td></tr>`;
+    }
+  }
+
+  $("filters").addEventListener("submit", e => {
+    e.preventDefault();
+    loadUsers();
+  });
+
+  $("reset").addEventListener("click", () => {
+    $("role").value = "";
+    $("status").value = "";
+    loadUsers();
+  });
+
+  $("refresh").addEventListener("click", loadUsers);
+
+  $("user-rows").addEventListener("click", async e => {
+    const row = e.target.closest("tr[data-id]");
+    if (!row) return;
+    const id = row.dataset.id;
+    const username = row.querySelector("td:nth-child(2)")?.textContent || `User ${id}`;
+
+    if (e.target.closest(".status-action")) {
+      const next = e.target.closest(".status-action").dataset.next;
+      if (!confirm(`Set ${username}'s account status to ${next}?`)) return;
+      try {
+        const data = await request(`${base}/${encodeURIComponent(id)}/status`, {
+          method:"PUT",
+          body:JSON.stringify({status:next})
+        });
+        showMessage(data.message || `${username} status updated.`);
+        await loadUsers();
+      } catch (err) { showMessage(err.message, true); }
+    }
+
+    if (e.target.closest(".reset-lockout")) {
+      if (!confirm(`Reset failed-login lockout for ${username}?`)) return;
+      try {
+        const data = await request(`${base}/${encodeURIComponent(id)}/reset-lockout`, {
+          method:"POST",
+          body:JSON.stringify({})
+        });
+        showMessage(data.message || `Lockout reset for ${username}.`);
+        await loadUsers();
+      } catch (err) { showMessage(err.message, true); }
+    }
+  });
+
+  loadUsers();
+})();
+</script>
+{% endblock %}

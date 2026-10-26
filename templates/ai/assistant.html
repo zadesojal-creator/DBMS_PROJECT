@@ -1,0 +1,239 @@
+﻿{% extends "base.html" %}
+
+{% block title %}AI SQL Assistant - StockTrade{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+  <div>
+    <h2 class="fw-bold mb-1">AI SQL Assistant</h2>
+    <p class="text-muted mb-0">Explore your database using natural language or validated SQL.</p>
+  </div>
+  <span class="badge bg-success">Read-only execution</span>
+</div>
+
+<div class="alert alert-info">
+  Queries are validated by the server before execution. Use only the views permitted for your role.
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <label class="form-label fw-semibold" for="mode">Query mode</label>
+    <select class="form-select mb-3" id="mode">
+      <option value="ai">AI — Natural language to SQL</option>
+      <option value="manual">Manual SQL</option>
+    </select>
+
+    <div id="ai-panel">
+      <label class="form-label fw-semibold" for="prompt">Ask a question about your StockTrade data</label>
+      <textarea class="form-control mb-3" id="prompt" rows="3"
+        placeholder="Example: Show my holdings ordered by market value"></textarea>
+      <button class="btn btn-primary" id="run-ai">Generate and Execute</button>
+    </div>
+
+    <div id="manual-panel" hidden>
+      <label class="form-label fw-semibold" for="sql">SQL query</label>
+      <textarea class="form-control font-monospace mb-3" id="sql" rows="6"
+        spellcheck="false" placeholder="SELECT symbol, current_price FROM v_market_latest LIMIT 10;"></textarea>
+      <button class="btn btn-primary" id="run-manual">Validate and Execute SQL</button>
+    </div>
+
+    <div id="status" class="mt-3 small" role="status" aria-live="polite"></div>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-header fw-semibold">Generated / Executed SQL</div>
+  <div class="card-body">
+    <pre class="mb-0 text-break" style="white-space:pre-wrap"><code id="sql-output">Run a query to see SQL here.</code></pre>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-header fw-semibold">Execution Summary</div>
+  <div class="card-body">
+    <div class="row g-3 mb-3">
+      <div class="col-6 col-md-3"><div class="text-muted small">Rows</div><div class="fs-5 fw-semibold" id="row-count">—</div></div>
+      <div class="col-6 col-md-3"><div class="text-muted small">Duration</div><div class="fs-5 fw-semibold" id="duration">—</div></div>
+      <div class="col-6 col-md-3"><div class="text-muted small">Validation</div><div class="fs-5 fw-semibold" id="validation">—</div></div>
+      <div class="col-6 col-md-3"><div class="text-muted small">Provider</div><div class="fs-6 fw-semibold" id="provider">—</div></div>
+    </div>
+    <p id="summary" class="mb-0 text-muted">Results will appear here.</p>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-header fw-semibold">Query Results</div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0">
+      <thead id="result-head"></thead>
+      <tbody id="result-body">
+        <tr><td class="text-muted p-3">No results yet.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span class="fw-semibold">Allowed Database Views</span>
+    <button class="btn btn-outline-secondary btn-sm" id="load-schema">Refresh schema</button>
+  </div>
+  <div class="card-body" id="schema">Loading permitted views...</div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span class="fw-semibold">Recent Query History</span>
+    <button class="btn btn-outline-secondary btn-sm" id="load-history">Refresh history</button>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0">
+      <thead><tr><th>Time</th><th>Prompt</th><th>Status</th><th>Rows</th><th>Duration</th></tr></thead>
+      <tbody id="history-body"><tr><td colspan="5" class="text-muted p-3">Loading history...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const csrf = document.querySelector('meta[name="csrf-token"]')?.content
+    || document.querySelector('meta[name="csrf_token"]')?.content
+    || "";
+
+  const safe = value => String(value ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
+  })[c]);
+
+  async function api(url, options = {}) {
+    const headers = { ...(options.body ? {"Content-Type":"application/json"} : {}), ...options.headers };
+    if (csrf) headers["X-CSRFToken"] = csrf;
+    const response = await fetch(url, { ...options, headers, credentials:"same-origin" });
+    let body;
+    try { body = await response.json(); }
+    catch { throw new Error(`Server returned HTTP ${response.status} without JSON.`); }
+    if (!response.ok || body.ok === false) {
+      throw new Error(body.error?.message || `Request failed (${response.status}).`);
+    }
+    return body.data;
+  }
+
+  function status(message, error = false) {
+    $("status").textContent = message;
+    $("status").className = `mt-3 small ${error ? "text-danger" : "text-muted"}`;
+  }
+
+  function renderResults(data) {
+    const columns = data.columns || [];
+    const rows = data.results || data.rows || [];
+    $("sql-output").textContent = data.executed_sql || data.generated_sql || "";
+    $("row-count").textContent = data.row_count ?? rows.length;
+    $("duration").textContent = `${data.duration_ms ?? 0} ms`;
+    $("validation").textContent = data.ast_validated === false ? "Not validated" : "Validated";
+    $("provider").textContent = data.provider_used || data.provider || "—";
+    $("summary").textContent = data.summary || data.explanation || "Query completed.";
+
+    $("result-head").innerHTML = columns.length
+      ? `<tr>${columns.map(c => `<th>${safe(c)}</th>`).join("")}</tr>` : "";
+
+    $("result-body").innerHTML = rows.length
+      ? rows.map(row => `<tr>${columns.map(c => {
+          const value = row[c];
+          return `<td>${safe(value === null ? "NULL" :
+            typeof value === "object" ? JSON.stringify(value) : value)}</td>`;
+        }).join("")}</tr>`).join("")
+      : `<tr><td colspan="${Math.max(columns.length, 1)}" class="text-muted p-3">No rows returned.</td></tr>`;
+  }
+
+  async function runAI() {
+    const prompt = $("prompt").value.trim();
+    if (!prompt) return status("Enter a question first.", true);
+    $("run-ai").disabled = true;
+    status("Generating, validating, and executing query...");
+    try {
+      const data = await api("/ai/api/v1/ai/query", {
+        method:"POST", body:JSON.stringify({prompt})
+      });
+      renderResults(data);
+      status("Request completed.");
+      await loadHistory();
+    } catch (e) { status(e.message, true); }
+    finally { $("run-ai").disabled = false; }
+  }
+
+  async function runManual() {
+    const sql = $("sql").value.trim();
+    if (!sql) return status("Enter a SQL query first.", true);
+    $("run-manual").disabled = true;
+    status("Validating and executing SQL...");
+    try {
+      const data = await api("/ai/api/v1/ai/execute", {
+        method:"POST",
+        body:JSON.stringify({sql, prompt:"Manual SQL Query", provider:"MANUAL_SQL"})
+      });
+      renderResults(data);
+      status("Query executed successfully.");
+      await loadHistory();
+    } catch (e) { status(e.message, true); }
+    finally { $("run-manual").disabled = false; }
+  }
+
+  async function loadSchema() {
+    $("schema").textContent = "Loading permitted views...";
+    try {
+      const data = await api("/ai/api/v1/ai/schema");
+      const views = data.allowed_views || [];
+      $("schema").innerHTML = views.length ? views.map(v => `
+        <div class="border rounded p-3 mb-3">
+          <div class="fw-semibold">${safe(v.view)}</div>
+          <p class="small text-muted mt-1 mb-2">${safe(v.description)}</p>
+          <div class="small mb-2"><strong>Columns:</strong> ${safe((v.columns || []).join(", "))}</div>
+          <button type="button" class="btn btn-outline-primary btn-sm use-sample">Use sample SQL</button>
+          <pre class="mt-2 mb-0 text-break" style="white-space:pre-wrap"><code>${safe(v.sample)}</code></pre>
+        </div>`).join("") : '<p class="text-muted mb-0">No permitted views were returned for this role.</p>';
+
+      $("schema").querySelectorAll(".use-sample").forEach((button, index) => {
+        button.addEventListener("click", () => {
+          $("mode").value = "manual";
+          $("mode").dispatchEvent(new Event("change"));
+          $("sql").value = views[index].sample || "";
+          $("sql").focus();
+        });
+      });
+    } catch (e) {
+      $("schema").textContent = e.message;
+    }
+  }
+
+  async function loadHistory() {
+    try {
+      const data = await api("/ai/api/v1/ai/history?limit=20");
+      $("history-body").innerHTML = data.length ? data.map(item => `
+        <tr>
+          <td>${safe(item.created_at)}</td>
+          <td>${safe(item.prompt)}</td>
+          <td>${safe(item.execution_status || item.validation_status)}</td>
+          <td>${safe(item.row_count ?? "—")}</td>
+          <td>${safe(item.duration_ms ?? "—")} ms</td>
+        </tr>`).join("") :
+        '<tr><td colspan="5" class="text-muted p-3">No query history found.</td></tr>';
+    } catch (e) {
+      $("history-body").innerHTML = `<tr><td colspan="5" class="text-danger p-3">${safe(e.message)}</td></tr>`;
+    }
+  }
+
+  $("mode").addEventListener("change", () => {
+    const manual = $("mode").value === "manual";
+    $("manual-panel").hidden = !manual;
+    $("ai-panel").hidden = manual;
+  });
+  $("run-ai").addEventListener("click", runAI);
+  $("run-manual").addEventListener("click", runManual);
+  $("load-schema").addEventListener("click", loadSchema);
+  $("load-history").addEventListener("click", loadHistory);
+
+  loadSchema();
+  loadHistory();
+})();
+</script>
+{% endblock %}

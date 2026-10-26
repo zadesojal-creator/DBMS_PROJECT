@@ -1,0 +1,55 @@
+﻿{% extends "base.html" %}
+{% import "macros/components.html" as ui %}
+
+{% block title %}Transactions - StockTrade{% endblock %}
+
+{% block content %}
+{{ ui.page_header("Transaction History", "Review your completed stock trades and their financial details") }}
+
+<div class="card shadow-sm border mb-4">
+  <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+    <h6 class="mb-0 fw-bold" style="color: var(--navy);">Recent Transactions</h6>
+    <a href="{{ url_for('investor.dashboard') }}" class="btn btn-outline-secondary btn-sm">Dashboard</a>
+  </div>
+
+  <div class="table-responsive">
+    {% if transactions %}
+    <table class="table-data table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Symbol</th>
+          <th>Side</th>
+          <th class="num">Quantity</th>
+          <th class="num">Execution Price</th>
+          <th class="num">Net Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in transactions %}
+        <tr>
+          <td>
+            {{ t.executed_at.strftime('%d %b %Y, %H:%M') if t.executed_at else '—' }}
+          </td>
+          <td class="fw-bold">{{ t.symbol or '—' }}</td>
+          <td>
+            <span class="badge {% if t.side == 'BUY' %}bg-gain-subtle text-gain{% else %}bg-loss-subtle text-loss{% endif %}">
+              {{ t.side or '—' }}
+            </span>
+          </td>
+          <td class="num">{{ t.quantity | qty }}</td>
+          <td class="num">{{ t.execution_price | inr }}</td>
+          <td class="num fw-bold">{{ t.net_amount | inr }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    {{ ui.empty_state("No transactions yet", "Your completed trades will appear here.", url_for('market.overview'), "Browse Market") }}
+    {% endif %}
+  </div>
+  <div class="card-footer bg-white text-muted small">
+    Showing up to 50 recent transactions.
+  </div>
+</div>
+{% endblock %}

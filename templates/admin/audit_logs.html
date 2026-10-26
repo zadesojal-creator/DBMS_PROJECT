@@ -1,0 +1,139 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Audit Logs - StockTrade{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+  <div>
+    <h2 class="fw-bold mb-1">Audit Logs</h2>
+    <p class="text-muted mb-0">Review recorded administrative actions and system changes.</p>
+  </div>
+  <button class="btn btn-outline-primary" id="refresh" type="button">Refresh</button>
+</div>
+
+<div id="message" class="alert d-none" role="status"></div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <form id="filters" class="row g-3 align-items-end">
+      <div class="col-md-5">
+        <label for="action" class="form-label">Action type</label>
+        <input class="form-control" id="action" placeholder="e.g. CREATE_STOCK">
+      </div>
+      <div class="col-md-3">
+        <label for="limit" class="form-label">Maximum records</label>
+        <select class="form-select" id="limit">
+          <option value="25">25</option>
+          <option value="50">50</option>
+          <option value="100" selected>100</option>
+          <option value="200">200</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-primary" type="submit">Apply Filters</button>
+        <button class="btn btn-outline-secondary" id="reset" type="button">Reset</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span class="fw-semibold">Recorded Events</span>
+    <span id="record-count" class="text-muted small">Loading...</span>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Actor</th>
+            <th>Action</th>
+            <th>Entity</th>
+            <th>Entity ID</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody id="log-rows">
+          <tr><td colspan="6" class="text-muted p-3">Loading audit logs...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small text-muted mb-0">This page displays the latest records returned by the server; it does not modify or delete audit history.</p>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const endpoint = "/admin/api/v1/admin/audit-logs";
+  const csrf = document.querySelector('meta[name="csrf-token"]')?.content
+    || document.querySelector('meta[name="csrf_token"]')?.content || "";
+
+  const esc = v => String(v ?? "—").replace(/[&<>"']/g, c => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
+  })[c]);
+
+  async function request(url) {
+    const headers = {};
+    if (csrf) headers["X-CSRFToken"] = csrf;
+    const res = await fetch(url, {headers, credentials:"same-origin"});
+    const body = await res.json();
+    if (!res.ok || body.ok === false) {
+      throw new Error(body.error?.message || `Request failed (${res.status})`);
+    }
+    return body.data;
+  }
+
+  async function loadLogs() {
+    $("log-rows").innerHTML = '<tr><td colspan="6" class="text-muted p-3">Loading audit logs...</td></tr>';
+    $("record-count").textContent = "Loading...";
+    const params = new URLSearchParams({limit:$("limit").value});
+    if ($("action").value.trim()) params.set("action", $("action").value.trim());
+
+    try {
+      const logs = await request(`${endpoint}?${params.toString()}`);
+      $("record-count").textContent = `${logs.length} record${logs.length === 1 ? "" : "s"}`;
+
+      $("log-rows").innerHTML = logs.length ? logs.map(log => {
+        const actor = log.username ?? log.actor_username ?? log.actor ?? log.user_id;
+        const entity = log.entity_type ?? log.target_type ?? log.resource_type;
+        const entityId = log.entity_id ?? log.target_id ?? log.resource_id;
+        let details = log.details ?? log.metadata ?? log.payload ?? "—";
+        if (typeof details === "object" && details !== null) {
+          try { details = JSON.stringify(details, null, 2); }
+          catch { details = "[Details unavailable]"; }
+        }
+        return `
+          <tr>
+            <td class="text-nowrap">${esc(log.created_at ?? log.timestamp ?? log.action_time)}</td>
+            <td>${esc(actor)}</td>
+            <td><span class="badge text-bg-secondary">${esc(log.action)}</span></td>
+            <td>${esc(entity)}</td>
+            <td>${esc(entityId)}</td>
+            <td><details><summary>View details</summary><pre class="small mt-2 mb-0" style="white-space:pre-wrap;overflow-wrap:anywhere;max-width:360px">${esc(details)}</pre></details></td>
+          </tr>`;
+      }).join("") : '<tr><td colspan="6" class="text-muted p-3">No audit records found for these filters.</td></tr>';
+    } catch (e) {
+      $("record-count").textContent = "Unavailable";
+      $("log-rows").innerHTML = `<tr><td colspan="6" class="text-danger p-3">${esc(e.message)}</td></tr>`;
+    }
+  }
+
+  $("filters").addEventListener("submit", e => {
+    e.preventDefault();
+    loadLogs();
+  });
+
+  $("reset").addEventListener("click", () => {
+    $("action").value = "";
+    $("limit").value = "100";
+    loadLogs();
+  });
+
+  $("refresh").addEventListener("click", loadLogs);
+  loadLogs();
+})();
+</script>
+{% endblock %}

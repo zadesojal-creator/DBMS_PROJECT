@@ -1,0 +1,66 @@
+﻿{% extends "base.html" %}
+{% import "macros/components.html" as ui %}
+
+{% block title %}My Account - StockTrade{% endblock %}
+
+{% block content %}
+{{ ui.page_header("My Account", "Account balance, portfolio performance, and accounting reconciliation") }}
+
+{% set cash = summary.get('available_cash', 0) or 0 %}
+{% set portfolio_value = summary.get('total_portfolio_value', 0) or 0 %}
+{% set unrealized = summary.get('unrealized_pnl', 0) or 0 %}
+{% set total_pnl = summary.get('total_pnl', 0) or 0 %}
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    {{ ui.kpi_tile("Available Cash", cash | inr, "Reconciled virtual cash balance") }}
+  </div>
+  <div class="col-md-3">
+    {{ ui.kpi_tile("Portfolio Value", portfolio_value | inr, "Cash + holdings market value") }}
+  </div>
+  <div class="col-md-3">
+    {{ ui.kpi_tile("Unrealized P&L", unrealized | inr, "Open position gains or losses", unrealized >= 0) }}
+  </div>
+  <div class="col-md-3">
+    {{ ui.kpi_tile("Total P&L", total_pnl | inr, "Realized + unrealized P&L", total_pnl >= 0) }}
+  </div>
+</div>
+
+<div class="card shadow-sm border mb-4">
+  <div class="card-header bg-white py-3">
+    <h6 class="mb-0 fw-bold" style="color: var(--navy);">Account & Portfolio Summary</h6>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <tbody>
+        <tr><th>Available Cash</th><td class="text-end">{{ cash | inr }}</td></tr>
+        <tr><th>Holdings Market Value</th><td class="text-end">{{ (summary.get('holdings_market_value', 0) or 0) | inr }}</td></tr>
+        <tr><th>Total Portfolio Value</th><td class="text-end fw-bold">{{ portfolio_value | inr }}</td></tr>
+        <tr><th>Total Invested Cost</th><td class="text-end">{{ (summary.get('total_invested_cost', 0) or 0) | inr }}</td></tr>
+        <tr><th>Realized P&L</th><td class="text-end">{{ (summary.get('realized_pnl', 0) or 0) | inr }}</td></tr>
+        <tr><th>Unrealized P&L</th><td class="text-end">{{ unrealized | inr }}</td></tr>
+        <tr><th>Total P&L</th><td class="text-end fw-bold">{{ total_pnl | inr }}</td></tr>
+        <tr><th>Overall Return</th><td class="text-end">{{ summary.get('return_pct') if summary.get('return_pct') is not none else '—' }}{% if summary.get('return_pct') is not none %}%{% endif %}</td></tr>
+        <tr><th>Today's Approximate P&L</th><td class="text-end">{{ (summary.get('today_pnl_approx', 0) or 0) | inr }}</td></tr>
+        <tr><th>Active Holdings</th><td class="text-end">{{ summary.get('holdings_count', 0) }}</td></tr>
+        <tr>
+          <th>Cash Reconciliation</th>
+          <td class="text-end">
+            {% if summary.get('is_reconciled') %}
+              <span class="badge bg-success">Reconciled</span>
+            {% else %}
+              <span class="badge bg-danger">Needs Review</span>
+            {% endif %}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="d-flex flex-wrap gap-2">
+  <a href="{{ url_for('investor.dashboard') }}" class="btn btn-outline-secondary btn-sm">Back to Dashboard</a>
+  <a href="{{ url_for('investor.portfolio') }}" class="btn btn-outline-primary btn-sm">View Holdings</a>
+  <a href="{{ url_for('investor.transactions') }}" class="btn btn-outline-primary btn-sm">Transaction History</a>
+</div>
+{% endblock %}
