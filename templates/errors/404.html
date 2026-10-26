@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block title %}404 Not Found — StockTrade{% endblock %}
+
+{% block content %}
+<div class="text-center py-5">
+  <div class="display-1 fw-bold text-muted">404</div>
+  <h3 class="fw-bold" style="color: var(--navy);">Resource Not Found</h3>
+  <p class="text-muted">{{ error_message or "The page or object you requested does not exist or has been removed." }}</p>
+  <a href="/" class="btn btn-primary mt-3">Return to Home</a>
+</div>
+{% endblock %}

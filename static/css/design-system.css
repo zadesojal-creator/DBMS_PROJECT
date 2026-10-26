@@ -1,0 +1,199 @@
+/* ==============================================================================
+   StockTrade Fintech Design System (design-system.css)
+   Token-based, high-density, professional terminal styling.
+   ============================================================================== */
+
+:root {
+  --navy: #172B3A;
+  --navy-light: #203A4E;
+  --teal: #167D7F;
+  --teal-hover: #116567;
+  --teal-subtle: #E8F4F5;
+  --bg: #F3F5F7;
+  --card: #FFFFFF;
+  --border: #E3E8EE;
+  --border-focus: #167D7F;
+  --amber: #D98B2B;
+  --amber-subtle: #FDF4E7;
+  --gain: #138A5B;
+  --gain-subtle: #E8F6F0;
+  --loss: #C73E3E;
+  --loss-subtle: #FBECEC;
+  --muted: #6B7A88;
+  --text-dark: #1F2D3D;
+  --text-body: #344356;
+  
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  
+  --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(23, 43, 58, 0.08);
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--bg);
+  color: var(--text-body);
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Tabular Numerals for Financial Data Density */
+.tabular-nums, .num, td.num, th.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  text-align: right;
+}
+
+/* Badge & Pills */
+.simulated-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #ECEFF2;
+  color: var(--navy);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot.green { background-color: var(--gain); box-shadow: 0 0 6px rgba(19, 138, 91, 0.4); }
+.status-dot.amber { background-color: var(--amber); box-shadow: 0 0 6px rgba(217, 139, 43, 0.4); }
+.status-dot.red { background-color: var(--loss); box-shadow: 0 0 6px rgba(199, 62, 62, 0.4); }
+
+/* Gain / Loss Semantic Colors */
+.text-gain { color: var(--gain) !important; font-weight: 600; }
+.text-loss { color: var(--loss) !important; font-weight: 600; }
+.bg-gain-subtle { background-color: var(--gain-subtle); color: var(--gain); }
+.bg-loss-subtle { background-color: var(--loss-subtle); color: var(--loss); }
+
+/* Buttons & Controls */
+.btn-primary {
+  background-color: var(--teal);
+  border-color: var(--teal);
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  padding: 6px 14px;
+}
+.btn-primary:hover, .btn-primary:focus {
+  background-color: var(--teal-hover);
+  border-color: var(--teal-hover);
+}
+
+.btn-outline-primary {
+  color: var(--teal);
+  border-color: var(--teal);
+  border-radius: var(--radius-md);
+}
+.btn-outline-primary:hover {
+  background-color: var(--teal);
+  color: #fff;
+}
+
+/* Cards & Layout */
+.stock-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-subtle);
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.kpi-tile {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.25rem;
+}
+.kpi-title {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+.kpi-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--navy);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tables */
+.table-data {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.875rem;
+}
+.table-data th {
+  background: #F8FAFC;
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.table-data td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-dark);
+}
+.table-data tbody tr:hover {
+  background-color: #F8FAFC;
+}
+
+/* Flash price animation */
+@keyframes flashGreen {
+  0% { background-color: var(--gain-subtle); }
+  100% { background-color: transparent; }
+}
+@keyframes flashRed {
+  0% { background-color: var(--loss-subtle); }
+  100% { background-color: transparent; }
+}
+.flash-up { animation: flashGreen 1s ease-out; }
+.flash-down { animation: flashRed 1s ease-out; }
+
+/* Sidebar Navigation */
+.app-sidebar {
+  background-color: var(--navy);
+  color: #E2E8F0;
+  min-height: 100vh;
+}
+.app-sidebar .nav-link {
+  color: #94A3B8;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  margin: 2px 8px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.app-sidebar .nav-link:hover, .app-sidebar .nav-link.active {
+  color: #FFFFFF;
+  background-color: var(--navy-light);
+}
+.app-sidebar .nav-link.active {
+  border-left: 3px solid var(--teal);
+}

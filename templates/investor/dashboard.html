@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% import "macros/components.html" as ui %}
+
+{% block title %}Investor Dashboard — StockTrade{% endblock %}
+
+{% block content %}
+{{ ui.page_header("Investor Terminal", "Virtual portfolio overview, asset allocation, and recent market executions") }}
+
+{% set cash = account.virtual_balance if account else 0.00 %}
+{% set holdings_val = holdings|sum(attribute='market_value') %}
+{% set total_portfolio = cash + holdings_val %}
+{% set unrealized_pnl = holdings|sum(attribute='unrealized_pnl') %}
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    {{ ui.kpi_tile("Total Portfolio Value", total_portfolio | inr, "Cash + Holdings Market Value") }}
+  </div>
+  <div class="col-md-3">
+    {{ ui.kpi_tile("Available Cash", cash | inr, "Virtual trading liquidity") }}
+  </div>
+  <div class="col-md-3">
+    {{ ui.kpi_tile("Holdings Market Value", holdings_val | inr, holdings|length ~ " active positions") }}
+  </div>
+  <div class="col-md-3">
+    {{ ui.kpi_tile("Unrealized P&L", unrealized_pnl | inr, "Live open position gains", unrealized_pnl >= 0) }}
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Holdings Table -->
+  <div class="col-lg-8">
+    <div class="card shadow-sm border mb-4">
+      <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-bold" style="color: var(--navy);">My Current Holdings</h6>
+        <a href="{{ url_for('investor.portfolio') }}" class="btn btn-outline-primary btn-sm">Full Portfolio</a>
+      </div>
+      <div class="table-responsive">
+        {% if holdings %}
+        <table class="table-data table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th class="num">Qty</th>
+              <th class="num">Avg Cost</th>
+              <th class="num">Current Price</th>
+              <th class="num">Market Value</th>
+              <th class="num">P&L</th>
+              <th class="num">Return %</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for h in holdings %}
+            <tr>
+              <td class="fw-bold">{{ h.symbol }}</td>
+              <td class="num">{{ h.quantity | qty }}</td>
+              <td class="num">{{ h.avg_cost | inr }}</td>
+              <td class="num fw-semibold">{{ h.current_price | inr }}</td>
+              <td class="num fw-bold">{{ h.market_value | inr }}</td>
+              <td class="num {% if h.unrealized_pnl >= 0 %}text-gain{% else %}text-loss{% endif %}">
+                {{ h.unrealized_pnl | inr }}
+              </td>
+              <td class="num {% if (h.return_pct or 0) >= 0 %}text-gain{% else %}text-loss{% endif %}">
+                {{ h.return_pct | pct }}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        {{ ui.empty_state("No holdings yet", "You have not purchased any stock shares yet.", url_for('market.overview'), "Browse Market") }}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Transactions -->
+  <div class="col-lg-4">
+    <div class="card shadow-sm border mb-4">
+      <div class="card-header bg-white py-3">
+        <h6 class="mb-0 fw-bold" style="color: var(--navy);">Recent Activity</h6>
+      </div>
+      <div class="card-body p-0">
+        {% if recent_transactions %}
+        <ul class="list-group list-group-flush small">
+          {% for t in recent_transactions %}
+          <li class="list-group-item d-flex justify-content-between align-items-center py-3">
+            <div>
+              <span class="badge {% if t.side == 'BUY' %}bg-gain-subtle text-gain{% else %}bg-loss-subtle text-loss{% endif %} me-1">{{ t.side }}</span>
+              <strong style="color: var(--navy);">{{ t.symbol }}</strong>
+              <div class="text-muted small">{{ t.quantity }} shares @ {{ t.execution_price | inr }}</div>
+            </div>
+            <div class="text-end">
+              <div class="fw-bold">{{ t.net_amount | inr }}</div>
+              <div class="text-muted" style="font-size: 0.75rem;">{{ t.executed_at.strftime('%d %b %H:%M') if t.executed_at else '' }}</div>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <div class="p-3 text-center text-muted small">No recent transactions recorded.</div>
+        {% endif %}
+      </div>
+      <div class="card-footer bg-white text-center py-2">
+        <a href="{{ url_for('investor.transactions') }}" class="small text-decoration-none">View All Transactions &rarr;</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

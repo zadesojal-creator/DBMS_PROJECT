@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: stocktrade-v2
+    runtime: python
+    plan: free
+    region: oregon
+    buildCommand: "npm --prefix frontend install && npm --prefix frontend run build && pip install -r requirements.txt"
+    startCommand: "gunicorn wsgi:app --workers 1 --threads 8 --timeout 120 --bind 0.0.0.0:$PORT"
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: PORT
+        value: 10000
+      - key: START_SIMULATOR
+        value: "true"
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: "3306"
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_AI_USER
+        sync: false
+      - key: DB_AI_PASSWORD
+        sync: false
+      - key: DB_SSL
+        value: "true"
+      - key: LLM_TIMEOUT_SECONDS
+        value: "5"
+      - key: LLM_COOLDOWN_SECONDS
+        value: "60"
+      - key: GROK_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: MISTRAL_API_KEY
+        sync: false

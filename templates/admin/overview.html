@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% import "macros/components.html" as ui %}
+
+{% block title %}Admin Console — Market & System Overview{% endblock %}
+
+{% block content %}
+{{ ui.page_header("Admin Console — Market Overview", "Global system health, active brokers, and aggregated trading metrics") }}
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    {{ ui.kpi_tile("Total Companies", stocks|length, "100 NSE/BSE listed") }}
+  </div>
+  <div class="col-md-3">
+    {{ ui.kpi_tile("Registered Users", users|length, "Admin, Brokers & Investors") }}
+  </div>
+  <div class="col-md-3">
+    {{ ui.kpi_tile("Market Simulator", "RUNNING", "5s Tick Interval", true) }}
+  </div>
+  <div class="col-md-3">
+    {{ ui.kpi_tile("Platform Mode", "SIMULATION", "Virtual Currency Only") }}
+  </div>
+</div>
+
+<div class="card shadow-sm border mb-4">
+  <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+    <h6 class="mb-0 fw-bold" style="color: var(--navy);">Market Overview (100 Companies)</h6>
+    <span class="badge bg-light text-dark border">Auto-polling 5s</span>
+  </div>
+  <div class="table-responsive" style="max-height: 500px;">
+    <table class="table-data table-hover align-middle mb-0" id="market-table">
+      <thead>
+        <tr>
+          <th>Symbol</th>
+          <th>Company Name</th>
+          <th>Sector</th>
+          <th class="num">Current Price</th>
+          <th class="num">Prev Close</th>
+          <th class="num">Change</th>
+          <th class="num">% Change</th>
+          <th class="num">Volume</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in stocks %}
+        <tr id="row-{{ s.stock_id }}">
+          <td class="fw-bold">{{ s.symbol }}</td>
+          <td class="text-truncate" style="max-width: 200px;">{{ s.company_name }}</td>
+          <td><span class="badge bg-light text-dark border">{{ s.sector }}</span></td>
+          <td class="num fw-bold price-cell">{{ s.current_price | inr }}</td>
+          <td class="num text-muted">{{ s.previous_close | inr }}</td>
+          <td class="num {% if s.day_change >= 0 %}text-gain{% else %}text-loss{% endif %}">
+            {{ s.day_change | inr }}
+          </td>
+          <td class="num {% if s.day_change_pct >= 0 %}text-gain{% else %}text-loss{% endif %}">
+            {{ s.day_change_pct | pct }}
+          </td>
+          <td class="num">{{ s.volume | qty }}</td>
+          <td>{{ ui.status_pill(s.status) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

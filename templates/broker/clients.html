@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% import "macros/components.html" as ui %}
+
+{% block title %}Client Management — Broker Portal{% endblock %}
+
+{% block content %}
+{{ ui.page_header("Client Management", "Onboard new investors and monitor assigned portfolio performance") }}
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    {{ ui.kpi_tile("Assigned Clients", clients|length, "Active investors under management") }}
+  </div>
+  <div class="col-md-4">
+    {% set total_vol = clients|sum(attribute='total_volume') %}
+    {{ ui.kpi_tile("Total Traded Volume", total_vol | inr, "Aggregated client trades") }}
+  </div>
+  <div class="col-md-4">
+    {% set total_comm = clients|sum(attribute='total_commission_generated') %}
+    {{ ui.kpi_tile("Total Commission Earned", total_comm | inr, "40% platform share", true) }}
+  </div>
+</div>
+
+<div class="card shadow-sm border">
+  <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+    <h6 class="mb-0 fw-bold" style="color: var(--navy);">My Assigned Clients</h6>
+  </div>
+  <div class="table-responsive">
+    {% if clients %}
+    <table class="table-data table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Investor Name</th>
+          <th>Email</th>
+          <th class="num">Virtual Balance</th>
+          <th class="num">Trades</th>
+          <th class="num">Volume</th>
+          <th class="num">Commission Earned</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in clients %}
+        <tr>
+          <td class="fw-bold">{{ c.investor_name }}</td>
+          <td>{{ c.investor_email }}</td>
+          <td class="num fw-bold">{{ c.virtual_balance | inr }}</td>
+          <td class="num">{{ c.total_trades }}</td>
+          <td class="num">{{ c.total_volume | inr }}</td>
+          <td class="num text-gain fw-bold">{{ c.total_commission_generated | inr }}</td>
+          <td>{{ ui.status_pill(c.investor_status) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    {{ ui.empty_state("No clients assigned", "You do not have any investors assigned to your brokerage yet.") }}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

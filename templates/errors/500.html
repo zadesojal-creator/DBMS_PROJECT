@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block title %}500 Server Error — StockTrade{% endblock %}
+
+{% block content %}
+<div class="text-center py-5">
+  <div class="display-1 fw-bold text-danger">500</div>
+  <h3 class="fw-bold" style="color: var(--navy);">Internal System Error</h3>
+  <p class="text-muted">{{ error_message or "An unexpected server-side error occurred. Details have been logged." }}</p>
+  <a href="/" class="btn btn-primary mt-3">Return to Safety</a>
+</div>
+{% endblock %}
