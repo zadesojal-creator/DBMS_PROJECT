@@ -1,0 +1,41 @@
+```html
+{% extends "base.html" %}
+
+{% block title %}{{ stock.get('company_name', stock.get('name', stock.get('symbol', 'Stock'))) }} | StockTrade{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <a href="{{ url_for('market.overview') }}"
+       class="btn btn-outline-secondary btn-sm mb-4">
+        <i class="bi bi-arrow-left me-1"></i> Back to Market
+    </a>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+            <h2 class="fw-bold">
+                {{ stock.get('company_name', stock.get('name', 'Unknown Company')) }}
+            </h2>
+
+            <p class="text-secondary mb-4">
+                {{ stock.get('symbol', '—') }}
+                {% if stock.get('sector') %}
+                    · {{ stock.get('sector') }}
+                {% endif %}
+            </p>
+
+            <h6 class="text-secondary">Latest available price</h6>
+            {% set price = quote.get('current_price', quote.get('price')) if quote else none %}
+
+            {% if price is not none %}
+                <h3 class="fw-bold">₹{{ "%.2f"|format(price|float) }}</h3>
+            {% else %}
+                <h3 class="text-secondary">Price unavailable</h3>
+                <p class="text-secondary">
+                    No current quote was returned for this stock.
+                </p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+```
