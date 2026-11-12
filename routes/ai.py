@@ -78,13 +78,18 @@ def api_generate():
 RULES:
 1. Return STRICT JSON with keys: "sql", "tables", "explanation".
 2. Use ONLY the allowed views for {role}.
-3. Root statement MUST be a SELECT. No INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE.
-4. For Investor queries on holdings/transactions, ALWAYS include `WHERE user_id = @current_user_id`.
-5. For Broker queries on clients/commissions, ALWAYS include `WHERE broker_id = @current_user_id`.
-6. For Admin queries, use system-wide views (e.g. `v_admin_user_audit` for accounts/failed logins, `v_admin_audit_logs` for security logs, `v_admin_trade_facts` for trade turnover, `v_market_latest` for equities).
-7. If the user asks about a specific sector (e.g. Banking, Chemicals, Logistics), you MUST include `WHERE sector = '...'`.
-8. Enforce a LIMIT 500 max, but do NOT arbitrarily add `LIMIT 10` if the user asked for all records.
-9. Do not wrap in markdown backticks. Return raw JSON object.
+3. Root statement MUST be exactly ONE single SELECT query. No multiple statements, no semicolons. No INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE.
+4. NEVER query base tables `users`, `investors`, `stocks`, `trades`. These tables do not exist or are disallowed. Use ONLY the exact view names listed above (e.g. `v_admin_user_audit` for user/investor accounts, `v_market_latest` for stocks/quotes).
+5. For Admin user/investor queries, use `v_admin_user_audit`. If the user asks specifically for investors, filter `WHERE role = 'INVESTOR'`. If brokers, filter `WHERE role = 'BROKER'`.
+6. For Investor queries on holdings/transactions, ALWAYS include `WHERE user_id = @current_user_id`.
+7. For Broker queries on clients/commissions, ALWAYS include `WHERE broker_id = @current_user_id`.
+8. If the user asks about a specific sector (e.g. Banking, Chemicals, Logistics), you MUST include `WHERE sector = '...'`.
+9. If the user asks for stocks by price (e.g. price > 1000, prize greater than 1000, cost under 500, between 500 and 1000), you MUST filter on `current_price` (e.g. `WHERE current_price > 1000` or `WHERE current_price BETWEEN 500 AND 1000`).
+10. If the user asks for stocks by volume (e.g. volume > 50000), you MUST filter on `volume`.
+11. If the user asks for stocks by percentage return or gain/loss, you MUST filter or sort on `day_change_pct`.
+12. If the user asks for stocks grouped by sector with average prices, use `GROUP BY sector`.
+13. Enforce a LIMIT 500 max, but do NOT arbitrarily add `LIMIT 10` if the user asked for all records.
+14. Do not wrap in markdown backticks. Return raw JSON object.
 """
         },
         {"role": "user", "content": prompt}
@@ -265,13 +270,18 @@ def api_query():
 RULES:
 1. Return STRICT JSON with keys: "sql", "tables", "explanation".
 2. Use ONLY the allowed views for {role}.
-3. Root statement MUST be a SELECT. No INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE.
-4. For Investor queries on holdings/transactions, ALWAYS include `WHERE user_id = @current_user_id`.
-5. For Broker queries on clients/commissions, ALWAYS include `WHERE broker_id = @current_user_id`.
-6. For Admin queries, use system-wide views (e.g. `v_admin_user_audit` for accounts/failed logins, `v_admin_audit_logs` for security logs, `v_admin_trade_facts` for trade turnover, `v_market_latest` for equities).
-7. If the user asks about a specific sector (e.g. Banking, Chemicals, Logistics), you MUST include `WHERE sector = '...'`.
-8. Enforce a LIMIT 500 max, but do NOT arbitrarily add `LIMIT 10` if the user asked for all records.
-9. Do not wrap in markdown backticks. Return raw JSON object.
+3. Root statement MUST be exactly ONE single SELECT query. No multiple statements, no semicolons. No INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE.
+4. NEVER query base tables `users`, `investors`, `stocks`, `trades`. These tables do not exist or are disallowed. Use ONLY the exact view names listed above (e.g. `v_admin_user_audit` for user/investor accounts, `v_market_latest` for stocks/quotes).
+5. For Admin user/investor queries, use `v_admin_user_audit`. If the user asks specifically for investors, filter `WHERE role = 'INVESTOR'`. If brokers, filter `WHERE role = 'BROKER'`.
+6. For Investor queries on holdings/transactions, ALWAYS include `WHERE user_id = @current_user_id`.
+7. For Broker queries on clients/commissions, ALWAYS include `WHERE broker_id = @current_user_id`.
+8. If the user asks about a specific sector (e.g. Banking, Chemicals, Logistics), you MUST include `WHERE sector = '...'`.
+9. If the user asks for stocks by price (e.g. price > 1000, prize greater than 1000, cost under 500, between 500 and 1000), you MUST filter on `current_price` (e.g. `WHERE current_price > 1000` or `WHERE current_price BETWEEN 500 AND 1000`).
+10. If the user asks for stocks by volume (e.g. volume > 50000), you MUST filter on `volume`.
+11. If the user asks for stocks by percentage return or gain/loss, you MUST filter or sort on `day_change_pct`.
+12. If the user asks for stocks grouped by sector with average prices, use `GROUP BY sector`.
+13. Enforce a LIMIT 500 max, but do NOT arbitrarily add `LIMIT 10` if the user asked for all records.
+14. Do not wrap in markdown backticks. Return raw JSON object.
 """
         },
         {"role": "user", "content": prompt}

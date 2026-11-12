@@ -8,6 +8,9 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
+if os.getenv("USE_AIVEN", "").lower() in ("1", "true", "yes") or not (BASE_DIR / ".env").is_file():
+    if (BASE_DIR / ".env.aiven").is_file():
+        load_dotenv(BASE_DIR / ".env.aiven", override=True)
 
 class Config:
     """Base application configuration."""
@@ -28,11 +31,15 @@ class Config:
     DB_HOST = os.getenv("DB_HOST", "localhost")
     DB_PORT = int(os.getenv("DB_PORT", "3306"))
     DB_NAME = os.getenv("DB_NAME", "stocktrade")
-    DB_USER = os.getenv("DB_USER", "stocktrade_app")
-    DB_PASSWORD = os.getenv("DB_PASSWORD", "StockTradeApp@2026!")
+    DB_USER = os.getenv("DB_USER") or os.getenv("DB_ROOT_USER", "stocktrade_app")
+    DB_PASSWORD = os.getenv("DB_PASSWORD") or os.getenv("DB_ROOT_PASSWORD", "StockTradeApp@2026!")
     
-    DB_AI_USER = os.getenv("DB_AI_USER", "stocktrade_ai_ro")
-    DB_AI_PASSWORD = os.getenv("DB_AI_PASSWORD", "StockTradeAiRo@2026!")
+    DB_AI_USER = os.getenv("DB_AI_USER") or os.getenv("DB_USER") or os.getenv("DB_ROOT_USER", "stocktrade_ai_ro")
+    DB_AI_PASSWORD = os.getenv("DB_AI_PASSWORD") or os.getenv("DB_PASSWORD") or os.getenv("DB_ROOT_PASSWORD", "StockTradeAiRo@2026!")
+
+    DB_SSL = os.getenv("DB_SSL", "false")
+    DB_SSL_CA = os.getenv("DB_SSL_CA", "")
+    DB_SSL_CA_CONTENT = os.getenv("DB_SSL_CA_CONTENT", "") or os.getenv("AIVEN_CA_CERT", "")
 
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> str:

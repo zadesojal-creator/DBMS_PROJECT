@@ -108,6 +108,21 @@ class SemanticValidator:
             if sym_lower not in where_str and (not intent.company_name_query or intent.company_name_query.lower() not in where_str):
                 return False, "MISSING_SYMBOL_FILTER", f"User requested symbol/company '{intent.symbol}', but WHERE clause does not filter for it."
 
+        # Check Price Filter Preservation
+        if intent.price_operator and intent.domain == "MARKET_EQUITIES":
+            if "current_price" not in where_str and "price" not in where_str:
+                return False, "MISSING_PRICE_FILTER", f"User requested price condition ({intent.price_operator} {intent.price_value}), but query does not filter by current_price."
+
+        # Check Volume Filter Preservation
+        if intent.volume_operator and intent.domain == "MARKET_EQUITIES":
+            if "volume" not in where_str:
+                return False, "MISSING_VOLUME_FILTER", f"User requested volume condition ({intent.volume_operator} {intent.volume_value}), but query does not filter by volume."
+
+        # Check Group By Sector Preservation
+        if intent.group_by_sector and intent.domain == "MARKET_EQUITIES":
+            if "group by" not in lower_sql or "sector" not in lower_sql:
+                return False, "MISSING_GROUP_BY", "User requested grouping by sector, but query does not contain GROUP BY sector."
+
         # ----------------------------------------------------------------------
         # Check 3: Scope and Arbitrary Truncation
         # ----------------------------------------------------------------------

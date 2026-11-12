@@ -1,0 +1,134 @@
+RelativePath,Category,Purpose,MainSymbols,AssociatedRoutesOrDB,Status
+app.py,Application Factory,"Flask 3 application factory, extensions, error handlers, and middleware","create_app, login_manager, csrf, limiter","All routes; /health, /",Active
+wsgi.py,Deployment Entry,"Gunicorn WSGI production entry point with MarketSimulator startup","app, env, MarketSimulator",WSGI entrypoint,Active
+config.py,Configuration,"Typed environment configuration classes for dev, test, prod","Config, ProductionConfig, TestingConfig","Reads DB_*, SECRET_KEY, SIMULATOR_*",Active
+Procfile,Deployment Config,Render process start command for Gunicorn,None,Gunicorn wsgi:app,Active
+render.yaml,Deployment Blueprint,Infrastructure-as-Code blueprint for Render Web Service,None,Render cloud deploy,Active
+requirements.txt,Dependencies,Python package manifests with environment markers,None,pip dependencies,Active
+start.ps1,Script,PowerShell startup script launching Flask backend and simulator,None,Local startup,Active
+backup_db.ps1,Script,PowerShell backup utility calling database/backup_manager.py,None,MySQL backup,Active
+init_db.ps1,Script,PowerShell initializer wrapper for local MySQL setup,None,MySQL init,Active
+init_aiven.py,Script,One-time migration and seed runner for Aiven Cloud MySQL,main,Aiven setup,Active (git-ignored)
+query_db.ps1,Script,PowerShell ad-hoc query runner for stocktrade database,None,Local querying,Active
+run_tests.ps1,Script,PowerShell pytest execution wrapper with coverage reporting,None,Test automation,Active
+README.md,Documentation,Repository overview and quick start guide,None,Documentation,Active
+DEPLOYMENT_GUIDE.md,Documentation,Cloud production deployment guide for Render and Aiven,None,Documentation,Active
+PRODUCT_SPEC_MASTER.md,Documentation,Master functional and technical specification document,None,Documentation,Active
+project.emd,Documentation,DBMS academic project documentation and schema details,None,Documentation,Active
+PROJECT.md,Documentation,Duplicate project architecture and concept specifications,None,Documentation,Active
+models/db.py,Database Layer,"SQLAlchemy Core engine initialization, connection pools, TLS handling","init_db_engines, get_db_connection, get_ai_connection",MySQL connection pools,Active
+models/schema.py,Database Layer,SQLAlchemy Core Table metadata reflections and column models,"users_table, orders_table, holdings_table",14 Core DB tables,Active
+models/user.py,Authentication,Flask-Login User model wrapping repository dictionary,User(UserMixin),Users table,Active
+repositories/stock_repo.py,Data Access Layer,"Stock directory queries, current quotes, OHLC aggregation","StockRepository.get_market_overview, get_history",Stocks; v_market_latest,Active
+repositories/account_repo.py,Data Access Layer,"Cash balance lookups, virtual deposits, ledger logging","AccountRepository.get_by_user_id, deposit",Accounts; Account_Ledger,Active
+repositories/holding_repo.py,Data Access Layer,Position balance queries and portfolio valuation calculations,HoldingRepository.get_by_user_and_stock,Holdings,Active
+repositories/order_repo.py,Data Access Layer,"Order lifecycle record creation, status updates, event logging","OrderRepository.create, update_status",Orders; Order_Events,Active
+repositories/transaction_repo.py,Data Access Layer,Trade transaction queries and realized P&L historical lookups,TransactionRepository.get_by_user,Transactions,Active
+repositories/broker_repo.py,Data Access Layer,"Broker client assignments, commission tracking, performance stats","BrokerRepository.get_clients, get_analytics",Broker_Clients; Commissions,Active
+repositories/user_repo.py,Data Access Layer,"User credential validation, lockout tracking, role lookups","UserRepository.get_by_identifier, record_login_failure",Users,Active
+repositories/audit_repo.py,Data Access Layer,Administrative and security audit event logging and retrieval,"AuditRepository.log, get_recent",Audit_Logs,Active
+repositories/watchlist_repo.py,Data Access Layer,Investor watchlist item addition and removal operations,"WatchlistRepository.get_watchlist, add",Watchlist,Active
+repositories/alert_repo.py,Data Access Layer,"Conditional price alert creation, cancellation, evaluation","AlertRepository.get_alerts, create_alert",Price_Alerts,Active
+repositories/ledger_repo.py,Data Access Layer,Strictly append-only double-entry financial ledger operations,LedgerRepository.record,Account_Ledger,Active
+services/auth_service.py,Business Logic,PBKDF2/scrypt password hashing and brute-force lockout logic,"AuthService.authenticate, role_required",Users; Audit_Logs,Active
+services/trading_service.py,Business Logic,Order placement validation and sp_execute_trade coordination,"TradingService.execute_order, deposit_funds",sp_execute_trade; Orders,Active
+services/market_simulator.py,Market Engine,"Autonomous pricing engine, stochastic walk, advisory locking","MarketSimulator, hydrate_from_db",Current_Prices; Stock_Prices,Active
+services/portfolio_service.py,Business Logic,"Portfolio valuation, asset allocation, unrealized P&L calculations",PortfolioService.get_portfolio_summary,Holdings; Current_Prices,Active
+services/reconciliation_service.py,Accounting,Automated audit reconciling cash balances with ledger entries,ReconciliationService.run_full_reconciliation,sp_reconcile_financial_integrity,Active
+services/intent_service.py,AI Subsystem,"Dynamic entity resolution, sector indexing, deterministic SQL fallback","IntentService.resolve_intent, generate_sql",Stocks; All 9 views,Active
+services/semantic_validator.py,AI Subsystem,AST semantic consistency verification matching intent to SQL,SemanticValidator.validate_consistency,Generated SQL AST,Active
+services/sql_validator.py,AI Subsystem,sqlglot AST allowlist validation and mutation blocking,SQLValidator.validate_sql,Allowed Views allowlist,Active
+services/query_executor.py,AI Subsystem,"Scoped execution under stocktrade_ai_ro, session tenancy, audit","QueryExecutor.execute_scoped_query, log_query_history",AI_Query_History; All 9 views,Active
+services/llm_router.py,AI Subsystem,Multi-provider LLM API client with timeout and exponential backoff,LLMRouter.complete,"Calls Grok, Gemini, OpenRouter",Active
+services/rag_service.py,AI Subsystem,Assembles structured prompt context based on caller role and intent,RAGService.get_context_for_role,rag_knowledge/*.md,Active
+routes/auth.py,HTTP Blueprint,"Authentication endpoints: login, logout, session restoration, CSRF","auth_bp, api_login, api_session, api_logout",/api/v1/auth/*,Active
+routes/market.py,HTTP Blueprint,"Market directory, polling price deltas, OHLC chart data, SSE feed","market_bp, api_prices, api_history, api_status",/market/*,Active
+routes/investor.py,HTTP Blueprint,"Investor trading, portfolio, watchlists, price alerts, broker view","investor_bp, api_orders, api_holdings, api_deposit",/investor/*,Active
+routes/broker.py,HTTP Blueprint,"Broker client management, onboarding, commissions, analytics","broker_bp, api_clients, api_analytics",/broker/*,Active
+routes/admin.py,HTTP Blueprint,"Admin company CRUD, user lockouts, audit logs, simulator control","admin_bp, api_companies, api_users, api_audit_logs",/admin/*,Active
+routes/ai.py,HTTP Blueprint,"AI natural language query, SQL execution, schema explorer, history","ai_bp, api_query, api_generate, api_execute",/ai/*,Active
+routes/reports.py,HTTP Blueprint,RFC 4180 CSV export for transaction history and statements,"reports_bp, export_transactions, export_statement",/reports/*,Active
+database/schema.sql,Database DDL,DDL defining 14 core relational tables and check constraints,All table definitions,Core relational tables,Active
+database/procedures.sql,Database Logic,Authoritative sp_execute_trade and financial reconciliation procedures,"sp_execute_trade, sp_reconcile_financial_integrity",Core procedures,Active
+database/triggers.sql,Database Logic,16 triggers enforcing ledger immutability and role restrictions,All 16 trigger definitions,Core triggers,Active
+database/views.sql,Database Logic,9 security projection views for role tenancy and AI assistant,All 9 view definitions,Core views,Active
+database/indexes.sql,Database Logic,Performance B-Tree indexes on foreign keys and timestamps,All index definitions,Performance indices,Active
+database/seed_companies.sql,Seed Data,Seed data for 104 listed equities across 10 sectors,INSERT INTO Stocks,Stocks seed data,Active
+database/seed_demo_users.sql,Seed Data,Seed data for Admin and demo Brokers and Investors,INSERT INTO Users,Users seed data,Active
+database/seed_settings_rules.sql,Seed Data,Seed data for system settings and commission rules,INSERT INTO System_Settings,Settings seed data,Active
+database/init_db.py,Database Migration,Multi-statement SQL migration runner and database initializer,execute_sql_file,Migration runner,Active
+database/migrations_v2.py,Database Migration,Migration script adding Order_Events and financial check constraints,run_migrations,Migration runner,Active
+database/backup_manager.py,Database Backup,Hot database backup manager and retention policy enforcement,BackupManager,Backup subsystem,Active
+database/backfill_prices.py,Database Seed,Stochastic price simulation and historical backfill utility,simulate_next_price,Backfill utility,Active
+frontend/index.html,Frontend HTML,Single-page HTML root entry point mounting React,None,React mount point,Active
+frontend/package.json,Frontend Config,Node dependencies manifest and build scripts,None,npm config,Active
+frontend/vite.config.js,Frontend Config,Vite build configuration compiling into static/dist,None,Vite config,Active
+frontend/src/main.jsx,Frontend React,React DOM root script mounting App into #root,None,React entry point,Active
+frontend/src/App.jsx,Frontend React,"Role-based shell, client-side tab navigation, modal state",App,Master SPA shell,Active
+frontend/src/api/client.js,Frontend React,"Centralized fetch client managing CSRF tokens, headers, and API calls",api,All API endpoints,Active
+frontend/src/context/AuthContext.jsx,Frontend React,"Global authentication context, login/logout, session tracking",AuthContext,Auth state,Active
+frontend/src/styles/index.css,Frontend CSS,Global CSS design tokens and layout styling,None,Design system,Active
+frontend/src/utils/formatters.js,Frontend Utility,Indian Rupee (INR) and percentage formatters,"formatInr, formatPct",Formatting utilities,Active
+frontend/src/components/BullLogo.jsx,Frontend Component,Minimalist charging bull vector SVG brand logo,BullLogo,Visual brand identity,Active
+frontend/src/components/Navbar.jsx,Frontend Component,"Top navigation bar with ticker status, search, and user profile",Navbar,UI navigation,Active
+frontend/src/components/Sidebar.jsx,Frontend Component,Left collapsible navigation drawer with role-scoped tabs,Sidebar,UI navigation,Active
+frontend/src/components/SimulatedBadge.jsx,Frontend Component,Live pulsing status pill indicating market simulator health,SimulatedBadge,Real-time status,Active
+frontend/src/components/KpiTile.jsx,Frontend Component,Minimalist metric card displaying financial statistics,KpiTile,Dashboard metrics,Active
+frontend/src/components/TradeTicketModal.jsx,Frontend Component,Interactive modal order placement dialog with buy/sell calculation,TradeTicketModal,Trading modal,Active
+frontend/src/components/DepositModal.jsx,Frontend Component,Virtual cash deposit modal dialog with ledger preview,DepositModal,Cash deposit modal,Active
+frontend/src/components/StockChartModal.jsx,Frontend Component,Interactive financial candlestick and line chart modal via Chart.js,StockChartModal,Stock charting,Active
+frontend/src/components/OnboardClientModal.jsx,Frontend Component,Broker client assignment onboarding modal,OnboardClientModal,Client assignment,Active
+frontend/src/components/SqlResultViewer.jsx,Frontend Component,Tabular data grid for AI SQL and Manual SQL query results,SqlResultViewer,Data grid viewer,Active
+frontend/src/pages/Login.jsx,Frontend Page,Asymmetrical split terminal login screen with live market ticker,Login,Login page,Active
+frontend/src/pages/investor/DashboardView.jsx,Frontend Page,Investor trading terminal with portfolio value and buying power,DashboardView,Investor dashboard,Active
+frontend/src/pages/investor/MarketView.jsx,Frontend Page,Stock screener with sector pills and live price table,MarketView,Stock screener,Active
+frontend/src/pages/investor/PortfolioView.jsx,Frontend Page,Open stock positions table with cost basis and unrealized P&L,PortfolioView,Portfolio view,Active
+frontend/src/pages/investor/TransactionsView.jsx,Frontend Page,Historical executed buy/sell trades with CSV export,TransactionsView,Transaction history,Active
+frontend/src/pages/investor/WatchlistView.jsx,Frontend Page,Monitored stocks table and conditional price alert configuration,WatchlistView,Watchlist & alerts,Active
+frontend/src/pages/broker/ClientsView.jsx,Frontend Page,Assigned clients roster and client portfolio inspection drawer,ClientsView,Broker clients view,Active
+frontend/src/pages/broker/AnalyticsView.jsx,Frontend Page,Broker commission earnings charts and client turnover stats,AnalyticsView,Broker analytics,Active
+frontend/src/pages/admin/OverviewView.jsx,Frontend Page,System-wide turnover metrics and platform health counters,OverviewView,Admin overview,Active
+frontend/src/pages/admin/CompaniesView.jsx,Frontend Page,Equity directory CRUD management and circuit rules,CompaniesView,Admin companies,Active
+frontend/src/pages/admin/UsersView.jsx,Frontend Page,User account management and brute-force lockout resets,UsersView,Admin users,Active
+frontend/src/pages/admin/AuditLogsView.jsx,Frontend Page,Immutable security audit logs table with action filters,AuditLogsView,Admin audit logs,Active
+frontend/src/pages/admin/SimulatorView.jsx,Frontend Page,Market simulator tick speed slider and volatility controls,SimulatorView,Admin simulator,Active
+frontend/src/pages/ai/AssistantView.jsx,Frontend Page,Dual-mode natural language AI assistant and manual SQL console,AssistantView,AI SQL assistant,Active
+templates/base.html,Jinja2 Template,Master server-rendered HTML layout with navigation and footer,None,Base template,Active
+templates/macros/components.html,Jinja2 Macro,Reusable UI component macros for server-rendered pages,None,Template macros,Active
+templates/auth/login.html,Jinja2 Template,Server-rendered login page fallback,None,/login,Active
+templates/market/overview.html,Jinja2 Template,Server-rendered market stock directory fallback,None,/market/,Active
+templates/market/detail.html,Jinja2 Template,Server-rendered stock detail page fallback,None,/market/<symbol>,Active
+templates/investor/dashboard.html,Jinja2 Template,Server-rendered investor dashboard fallback,None,/investor/dashboard,Active
+templates/investor/portfolio.html,Jinja2 Template,Server-rendered investor portfolio positions fallback,None,/investor/portfolio,Active
+templates/investor/trade.html,Jinja2 Template,Server-rendered order placement page fallback,None,/investor/trade,Active
+templates/investor/transactions.html,Jinja2 Template,Server-rendered transaction history fallback,None,/investor/transactions,Active
+templates/investor/watchlist.html,Jinja2 Template,Server-rendered watchlist and alerts fallback,None,/investor/watchlist,Active
+templates/investor/account.html,Jinja2 Template,Server-rendered cash deposit and account fallback,None,/investor/account,Active
+templates/investor/broker.html,Jinja2 Template,Server-rendered assigned broker profile fallback,None,/investor/broker,Active
+templates/broker/overview.html,Jinja2 Template,Server-rendered broker portal overview fallback,None,/broker/overview,Active
+templates/broker/clients.html,Jinja2 Template,Server-rendered broker client roster fallback,None,/broker/clients,Active
+templates/broker/analytics.html,Jinja2 Template,Server-rendered broker commission analytics fallback,None,/broker/analytics,Active
+templates/admin/overview.html,Jinja2 Template,Server-rendered admin portal overview fallback,None,/admin/overview,Active
+templates/admin/companies.html,Jinja2 Template,Server-rendered listed companies management fallback,None,/admin/companies,Active
+templates/admin/users.html,Jinja2 Template,Server-rendered user account management fallback,None,/admin/users,Active
+templates/admin/audit_logs.html,Jinja2 Template,Server-rendered security audit log viewer fallback,None,/admin/audit-logs,Active
+templates/ai/assistant.html,Jinja2 Template,Server-rendered AI text-to-SQL console fallback,None,/ai/assistant,Active
+templates/errors/403.html,Jinja2 Template,HTTP 403 Forbidden error page,None,Error 403,Active
+templates/errors/404.html,Jinja2 Template,HTTP 404 Not Found error page,None,Error 404,Active
+templates/errors/500.html,Jinja2 Template,HTTP 500 Internal Server Error page,None,Error 500,Active
+tests/conftest.py,Test Configuration,Pytest session fixtures for database and client initialization,db_conn; app; client; admin_client,Test fixtures,Active
+tests/test_trading.py,Test Suite,9 automated tests verifying atomic trading and WAC math,test_buy_order_execution_and_math,Trading tests,Active
+tests/test_concurrency.py,Test Suite,3 automated tests verifying race conditions and idempotency,test_concurrent_orders_no_overspend,Concurrency tests,Active
+tests/test_database.py,Test Suite,16 automated tests verifying schema constraints and triggers,test_trigger_ledger_immutability_update,Database tests,Active
+tests/test_reconciliation.py,Test Suite,4 automated tests verifying financial reconciliation procedure,test_reconciliation_stored_procedure,Reconciliation tests,Active
+tests/test_ai_sql.py,Test Suite,37 automated tests verifying AST safety and tenant scoping,test_disallowed_tables_rejected_per_role,AI SQL tests,Active
+tests/test_ai_intent_correctness.py,Test Suite,15 automated tests verifying dynamic sector resolution and intent,test_sector_intent_banking_returns_only_banks,AI Intent tests,Active
+tests/test_investor_features.py,Test Suite,6 automated tests verifying watchlists and price alerts,test_watchlist_crud_endpoints,Investor feature tests,Active
+tests/test_broker_clients.py,Test Suite,4 automated tests verifying broker client onboarding and isolation,test_broker_client_onboard_atomicity,Broker feature tests,Active
+tests/test_market.py,Test Suite,14 automated tests verifying market simulator and SSE streaming,test_high_frequency_in_memory_tick_speed,Market simulator tests,Active
+tests/test_auth.py,Test Suite,7 automated tests verifying login and lockout lifecycle,test_login_brute_force_lockout,Auth tests,Active
+tests/test_permissions.py,Test Suite,8 automated tests verifying role boundaries across portals,test_investor_cannot_access_admin_portal,Permission tests,Active
+tests/test_backup.py,Test Suite,3 automated tests verifying database backup discovery and retention,test_backup_creation_and_metadata,Backup tests,Active
+tests/test_reports.py,Test Suite,2 automated tests verifying CSV injection sanitization and export,test_csv_formula_injection_sanitization,Reports tests,Active
+tests/test_production_readiness_audit.py,Test Suite,8 automated tests verifying production entry point and TLS connect,test_cloud_mysql_tls_connect_args,Production audit tests,Active
+utils/formatters.py,Utility,Indian Rupee (INR) and percentage string formatting functions,format_inr; format_pct,Formatters,Active

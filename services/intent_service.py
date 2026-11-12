@@ -27,6 +27,15 @@ class Intent:
     limit: Optional[int] = None
     order_by_col: Optional[str] = None
     order_direction: str = 'ASC'
+    price_operator: Optional[str] = None  # '>', '<', '>=', '<=', '=', 'BETWEEN'
+    price_value: Optional[float] = None
+    price_value_high: Optional[float] = None
+    volume_operator: Optional[str] = None
+    volume_value: Optional[int] = None
+    pct_operator: Optional[str] = None
+    pct_value: Optional[float] = None
+    group_by_sector: bool = False
+    role_filter: Optional[str] = None
     is_supported: bool = True
     is_ambiguous: bool = False
     clarification_message: Optional[str] = None
@@ -205,7 +214,97 @@ class IntentService:
         elif "this month" in p_lower:
             time_filter = "this_month"
 
-        # 5. Detect Sorting & Direction
+        # 5. Detect Numeric Conditions (Price, Volume, Percentage Change)
+        price_operator = None
+        price_value = None
+        price_value_high = None
+
+        # Check BETWEEN price ranges
+        between_match = re.search(r'\b(?:between|from)\s+(?:rs\.?|inr|₹)?\s*([\d,]+(?:\.\d+)?)\s+(?:and|to)\s+(?:rs\.?|inr|₹)?\s*([\d,]+(?:\.\d+)?)\b', p_lower)
+        if between_match:
+            try:
+                v1 = float(between_match.group(1).replace(',', ''))
+                v2 = float(between_match.group(2).replace(',', ''))
+                price_operator = "BETWEEN"
+                price_value = min(v1, v2)
+                price_value_high = max(v1, v2)
+            except Exception:
+                pass
+
+        # Check two-sided comparison: "greater than 500 and smaller than 1,000" or "above 500 and below 1000"
+        if not price_operator:
+            range_match1 = re.search(r'\b(?:greater than|more than|higher than|above|>|>=)\s*(?:rs\.?|inr|₹)?\s*([\d,]+(?:\.\d+)?)\s*(?:and|to|but)\s*(?:smaller than|less than|lower than|below|<|<=)\s*(?:rs\.?|inr|₹)?\s*([\d,]+(?:\.\d+)?)\b', p_lower)
+            range_match2 = re.search(r'\b(?:smaller than|less than|lower than|below|<|<=)\s*(?:rs\.?|inr|₹)?\s*([\d,]+(?:\.\d+)?)\s*(?:and|to|but)\s*(?:greater than|more than|higher than|above|>|>=)\s*(?:rs\.?|inr|₹)?\s*([\d,]+(?:\.\d+)?)\b', p_lower)
+            rm = range_match1 or range_match2
+            if rm:
+                try:
+                    v1 = float(rm.group(1).replace(',', ''))
+                    v2 = float(rm.group(2).replace(',', ''))
+                    price_operator = "BETWEEN"
+                    price_value = min(v1, v2)
+                    price_value_high = max(v1, v2)
+                except Exception:
+                    pass
+
+        if not price_operator:
+            # Check explicit price comparison
+            comp_match = re.search(r'\b(?:price|prices|prize|prizes|cost|rate|rates|trading|valued?)\s*(?:is|are|of)?\s*(>|>=|<|<=|=|greater than or equal to|less than or equal to|greater than|more than|higher than|above|over|exceeding|less than|lower than|below|under|equal to)\s*(?:rs\.?|inr|₹)?\s*([\d,]+(?:\.\d+)?)\b', p_lower)
+            if not comp_match:
+                # Check alternative syntax when stock/share context is present
+                comp_match = re.search(r'\b(?:stocks?|shares?|equities?|companies?|tickers?)\s*(?:whose|with|where|that)?\s*(?:is|are)?\s*(>|>=|<|<=|greater than or equal to|less than or equal to|greater than|more than|higher than|above|over|less than|lower than|below|under)\s*(?:rs\.?|inr|₹)?\s*([\d,]+(?:\.\d+)?)\b', p_lower)
+
+            if comp_match:
+                op_raw = comp_match.group(1).strip().lower()
+                val_raw = comp_match.group(2).replace(',', '')
+                try:
+                    price_value = float(val_raw)
+                    if op_raw in (">=", "greater than or equal to"):
+                        price_operator = ">="
+                    elif op_raw in ("<=", "less than or equal to"):
+                        price_operator = "<="
+                    elif op_raw in (">", "greater than", "more than", "higher than", "above", "over", "exceeding"):
+                        price_operator = ">"
+                    elif op_raw in ("<", "less than", "lower than", "below", "under"):
+                        price_operator = "<"
+                    elif op_raw in ("=", "equal to"):
+                        price_operator = "="
+                except Exception:
+                    pass
+
+        # Check volume filter
+        volume_operator = None
+        volume_value = None
+        vol_match = re.search(r'\bvolume\s*(?:is|of)?\s*(>|>=|<|<=|=|greater than or equal to|less than or equal to|greater than|more than|higher than|above|over|less than|lower than|below|under)\s*([\d,]+(?:\.\d+)?)\s*(k|m|cr)?\b', p_lower)
+        if vol_match:
+            op_raw = vol_match.group(1).strip().lower()
+            val_raw = float(vol_match.group(2).replace(',', ''))
+            unit = vol_match.group(3)
+            if unit == "k":
+                val_raw *= 1000
+            elif unit == "m":
+                val_raw *= 1000000
+            elif unit == "cr":
+                val_raw *= 10000000
+            volume_value = int(val_raw)
+            if op_raw in (">=", "greater than or equal to"):
+                volume_operator = ">="
+            elif op_raw in ("<=", "less than or equal to"):
+                volume_operator = "<="
+            elif op_raw in (">", "greater than", "more than", "higher than", "above", "over"):
+                volume_operator = ">"
+            elif op_raw in ("<", "less than", "lower than", "below", "under"):
+                volume_operator = "<"
+            else:
+                volume_operator = "="
+
+        # Check sector grouping
+        is_grouped_by_sector = any(w in p_lower for w in [
+            "grouped by sector", "group by sector", "per sector", "by sector with average",
+            "average price by sector", "average price per sector", "stocks per sector",
+            "stocks in each sector", "securities grouped by sector"
+        ])
+
+        # 6. Detect Sorting & Direction
         order_col = None
         order_dir = "ASC"
         if any(w in p_lower for w in ["gainers", "highest return", "gained the most", "top return"]):
@@ -223,6 +322,12 @@ class IntentService:
         elif any(w in p_lower for w in ["lowest price", "cheapest"]):
             order_col = "current_price"
             order_dir = "ASC"
+        elif price_operator in (">", ">="):
+            order_col = "current_price"
+            order_dir = "DESC"
+        elif price_operator in ("<", "<="):
+            order_col = "current_price"
+            order_dir = "ASC"
         elif any(w in p_lower for w in ["most failed", "highest failed"]):
             order_col = "failed_login_attempts"
             order_dir = "DESC"
@@ -230,7 +335,7 @@ class IntentService:
             order_col = "created_at"
             order_dir = "DESC"
 
-        # 6. Domain & Target View Resolution
+        # 7. Domain & Target View Resolution
         # -------------------------------------------------------------
         # Security & User Audit Domain
         has_login_kw = any(w in p_lower for w in ["login", "log in", "logged in", "logins", "sign in", "signed in", "password", "attempts", "auth"])
@@ -289,22 +394,51 @@ class IntentService:
                 )
 
         # -------------------------------------------------------------
-        # User Accounts Roster Domain (Admin)
-        is_user_roster_query = any(w in p_lower for w in [
-            "user accounts", "registered users", "list users", "all accounts", "users by role", "user roster"
-        ])
+        # User Accounts Roster Domain (Admin & Broker)
+        has_trans_kw_local = any(w in p_lower for w in ["transaction", "transactions", "trade", "trades", "portfolio", "holding", "holdings"])
+        has_user_target = not has_trans_kw_local and bool(re.search(r'\b(investors?|users?|brokers?|accounts?|registered|roster|people|clients?)\b', p_lower))
+        is_user_roster_query = has_user_target and (
+            any(w in p_lower for w in ["list", "all", "show", "give me", "display", "who are", "roster", "directory", "registered", "how many"])
+            or "users and investors" in p_lower
+            or "all investors" in p_lower
+            or "all users" in p_lower
+            or "all brokers" in p_lower
+        )
         if is_user_roster_query:
             if r != "ADMIN":
+                if r == "BROKER":
+                    return Intent(
+                        raw_prompt=p, role=r, domain="BROKER_CLIENTS", target_view="v_broker_client_summary",
+                        operation=op, scope=scope, limit=limit_val,
+                        order_by_col=order_col or "total_commission_generated", order_direction="DESC",
+                        explanation="Lists active investor clients assigned to your brokerage.",
+                        tables_used=["v_broker_client_summary"]
+                    )
                 return Intent(
                     raw_prompt=p, role=r, domain="ADMIN_USERS", target_view="", operation=op, is_supported=False,
                     explanation="User directory access requires Administrator privileges.",
-                    clarification_message="System-wide user accounts are only visible to System Administrators."
+                    clarification_message="System-wide user accounts and investor rosters are only visible to System Administrators."
                 )
+
+            # Determine if specific role filter was requested
+            req_role = None
+            if any(w in p_lower for w in ["investor", "investors"]) and not any(w in p_lower for w in ["all users", "users and", "brokers"]):
+                req_role = "INVESTOR"
+            elif any(w in p_lower for w in ["broker", "brokers"]) and not any(w in p_lower for w in ["investor", "investors", "all users"]):
+                req_role = "BROKER"
+
+            expl = "Lists registered user accounts across system roles."
+            if req_role == "INVESTOR":
+                expl = "Lists all registered retail investors on the platform."
+            elif req_role == "BROKER":
+                expl = "Lists all registered institutional brokers on the platform."
+
             return Intent(
                 raw_prompt=p, role=r, domain="ADMIN_USERS", target_view="v_admin_user_audit",
                 operation=op, scope=scope, limit=limit_val,
-                order_by_col=order_col or "role", order_direction="ASC",
-                explanation="Lists registered platform user accounts across system roles.",
+                role_filter=req_role,
+                order_by_col=order_col or "user_id", order_direction="ASC",
+                explanation=expl,
                 tables_used=["v_admin_user_audit"]
             )
 
@@ -431,6 +565,50 @@ class IntentService:
         # -------------------------------------------------------------
         # Public Market Equities Domain (Available to all roles)
         # Handles sector listings, stock quotes, gainers, losers, market volume
+        is_market_query = (
+            resolved_sector is not None or
+            resolved_symbol is not None or
+            price_operator is not None or
+            volume_operator is not None or
+            is_grouped_by_sector or
+            order_col in ("day_change_pct", "volume", "current_price") or
+            any(w in p_lower for w in [
+                "stock", "stocks", "share", "shares", "equity", "equities",
+                "ticker", "tickers", "market", "company", "companies",
+                "price", "prices", "prize", "prizes", "gainers", "losers",
+                "volume", "turnover", "nse", "bse", "quote", "quotes",
+                "listed", "securities", "sector", "sectors", "exchange",
+                "all companies", "all stocks", "top mover"
+            ])
+        )
+
+        if not is_market_query:
+            return Intent(
+                raw_prompt=p,
+                role=r,
+                domain="UNSUPPORTED",
+                target_view="",
+                operation=op,
+                is_supported=False,
+                explanation="The request does not match any recognized financial entities, stocks, users, or platform records in the database.",
+                clarification_message=f"No matching equities, portfolios, users, or database records were found for '{p}'. You can ask about listed stocks (e.g. TCS, Infosys), market prices, sectors (e.g. Banking, IT), user accounts, or broker commissions."
+            )
+
+        expl_market = "Queries real-time market quotes and volume"
+        if resolved_sector:
+            expl_market += f" for the {resolved_sector} sector"
+        elif resolved_symbol:
+            expl_market += f" for {resolved_symbol}"
+        elif price_operator:
+            if price_operator == "BETWEEN":
+                expl_market += f" for stocks priced between ₹{price_value:,.2f} and ₹{price_value_high:,.2f}"
+            else:
+                expl_market += f" for stocks where price {price_operator} ₹{price_value:,.2f}"
+        elif volume_operator:
+            expl_market += f" for stocks where volume {volume_operator} {volume_value:,}"
+        elif is_grouped_by_sector:
+            expl_market = "Calculates listed stock counts and average prices grouped by sector"
+
         return Intent(
             raw_prompt=p,
             role=r,
@@ -442,9 +620,15 @@ class IntentService:
             company_name_query=resolved_company,
             scope=scope,
             limit=limit_val,
-            order_by_col=order_col or ("company_name" if resolved_sector else "volume"),
-            order_direction=order_dir if order_col else ("ASC" if resolved_sector else "DESC"),
-            explanation=f"Queries real-time market quotes and volume{f' for the {resolved_sector} sector' if resolved_sector else (f' for {resolved_symbol}' if resolved_symbol else '')}.",
+            order_by_col=order_col or ("current_price" if price_operator else ("company_name" if resolved_sector else "volume")),
+            order_direction=order_dir if order_col else (("DESC" if price_operator in (">", ">=") else "ASC") if price_operator else ("ASC" if resolved_sector else "DESC")),
+            price_operator=price_operator,
+            price_value=price_value,
+            price_value_high=price_value_high,
+            volume_operator=volume_operator,
+            volume_value=volume_value,
+            group_by_sector=is_grouped_by_sector,
+            explanation=expl_market + ".",
             tables_used=["v_market_latest"]
         )
 
@@ -468,13 +652,13 @@ class IntentService:
         # 1. Market Equities Domain
         if intent.domain == "MARKET_EQUITIES":
             cols = "symbol, company_name, sector, current_price, previous_close, day_change_pct, volume"
-            if intent.operation == "COUNT" and not intent.sector:
-                # Group by sector count
-                sql = "SELECT sector, COUNT(*) AS stock_count, ROUND(AVG(current_price), 2) AS avg_price FROM v_market_latest GROUP BY sector ORDER BY stock_count DESC LIMIT 500;"
+            if intent.group_by_sector or (intent.operation in ("COUNT", "COMPARE", "AVG") and "sector" in intent.raw_prompt.lower() and not intent.sector):
+                # Group by sector aggregation
+                sql = "SELECT sector, COUNT(*) AS stock_count, ROUND(AVG(current_price), 2) AS avg_price, ROUND(MIN(current_price), 2) AS min_price, ROUND(MAX(current_price), 2) AS max_price FROM v_market_latest GROUP BY sector ORDER BY stock_count DESC LIMIT 500;"
                 return {
                     "sql": sql,
                     "tables": ["v_market_latest"],
-                    "explanation": "Calculates the number of listed companies and average share price per sector."
+                    "explanation": "Calculates the number of listed companies, average, min, and max share prices grouped by sector."
                 }
 
             if intent.sector:
@@ -488,8 +672,21 @@ class IntentService:
             elif intent.company_name_query:
                 where_clauses.append(f"company_name LIKE '%{intent.company_name_query.split()[0]}%'")
 
+            if intent.price_operator:
+                if intent.price_operator == "BETWEEN":
+                    where_clauses.append(f"current_price BETWEEN {intent.price_value} AND {intent.price_value_high}")
+                else:
+                    where_clauses.append(f"current_price {intent.price_operator} {intent.price_value}")
+
+            if intent.volume_operator:
+                where_clauses.append(f"volume {intent.volume_operator} {intent.volume_value}")
+
             if intent.order_by_col:
                 order_clause = f"ORDER BY {intent.order_by_col} {intent.order_direction}"
+            elif intent.price_operator in (">", ">="):
+                order_clause = "ORDER BY current_price DESC"
+            elif intent.price_operator in ("<", "<="):
+                order_clause = "ORDER BY current_price ASC"
             elif intent.sector:
                 order_clause = "ORDER BY company_name ASC"
             else:
@@ -525,11 +722,13 @@ class IntentService:
             cols = "user_id, username, email, full_name, role, status, failed_login_attempts, locked_until, last_login_at"
             if intent.failed_login_only:
                 where_clauses.append("(failed_login_attempts > 0 OR locked_until IS NOT NULL)")
+            if intent.role_filter:
+                where_clauses.append(f"role = '{intent.role_filter}'")
 
-            order_col = intent.order_by_col or ("failed_login_attempts" if intent.failed_login_only else "role, username")
+            order_col = intent.order_by_col or ("failed_login_attempts" if intent.failed_login_only else "user_id")
             where_str = f"WHERE {' AND '.join(where_clauses)} " if where_clauses else ""
             sql = f"SELECT {cols} FROM v_admin_user_audit {where_str}ORDER BY {order_col} {intent.order_direction} {limit_clause};"
-            expl = intent.explanation or "Lists registered user accounts and their authentication status."
+            expl = intent.explanation or "Lists registered user accounts."
             return {"sql": sql, "tables": ["v_admin_user_audit"], "explanation": expl}
 
         # 4. Investor Portfolio Domain

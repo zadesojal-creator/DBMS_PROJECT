@@ -17,6 +17,7 @@ ENV/
 *.key
 *.crt
 *.env.aiven
+init_aiven.py
 
 # Node & Frontend dependencies
 node_modules/
