@@ -4,6 +4,7 @@ Dedicated to Groq / Grok Free Tier AI Model with circuit breaker and verified te
 All Gemini, OpenRouter, and Mistral legacy providers have been removed as requested.
 """
 import os
+import sys
 import time
 import json
 import threading
@@ -11,11 +12,12 @@ from typing import List, Dict, Any, Optional
 import requests
 import urllib3
 
-try:
-    import truststore
-    truststore.inject_into_ssl()
-except Exception:
-    pass
+if sys.platform == "win32":
+    try:
+        import truststore
+        truststore.inject_into_ssl()
+    except Exception:
+        pass
 
 class LLMRouter:
     _instance: Optional['LLMRouter'] = None

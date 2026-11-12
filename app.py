@@ -3,13 +3,15 @@ StockTrade Application Factory (app.py)
 Flask 3 with Blueprints, Server-Side Sessions, CSRF, Rate-Limiting, and Security Headers.
 """
 import os
+import sys
 from datetime import datetime
 
-try:
-    import truststore
-    truststore.inject_into_ssl()
-except Exception:
-    pass
+if sys.platform == "win32":
+    try:
+        import truststore
+        truststore.inject_into_ssl()
+    except Exception:
+        pass
 
 from flask import Flask, request, jsonify, render_template, redirect, url_for, session, send_from_directory, abort
 from flask_login import LoginManager, current_user

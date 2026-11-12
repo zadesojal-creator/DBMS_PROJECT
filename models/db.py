@@ -52,16 +52,8 @@ def init_db_engines(config):
         db_ai_pass = db_pass
 
     db_ssl = str(get_val("DB_SSL", "false")).lower() in ("true", "1", "yes")
-    db_ssl_ca = get_val("DB_SSL_CA", "")
-    db_ssl_ca_content = get_val("DB_SSL_CA_CONTENT", "") or get_val("AIVEN_CA_CERT", "")
-
-    # If DB_SSL_CA_CONTENT is provided as an env var, write to temp file
-    if db_ssl_ca_content and not db_ssl_ca:
-        import tempfile
-        ca_temp = os.path.join(tempfile.gettempdir(), "stocktrade_aiven_ca.pem")
-        with open(ca_temp, "w", encoding="utf-8") as f:
-            f.write(db_ssl_ca_content.strip() + "\n")
-        db_ssl_ca = ca_temp
+    db_ssl_ca = str(get_val("DB_SSL_CA", "") or "").strip()
+    db_ssl_ca_content = str(get_val("DB_SSL_CA_CONTENT", "") or get_val("AIVEN_CA_CERT", "") or "").strip()
 
     # If db_ssl_ca is relative, resolve relative to project root
     if db_ssl_ca and not os.path.isabs(db_ssl_ca):
@@ -70,6 +62,21 @@ def init_db_engines(config):
         candidate = base_dir / db_ssl_ca
         if candidate.is_file():
             db_ssl_ca = str(candidate)
+
+    # Prefer DB_SSL_CA_CONTENT if DB_SSL_CA is omitted or points to a non-existent file (e.g., gitignored aiven-ca.pem)
+    if db_ssl_ca_content and (not db_ssl_ca or not os.path.isfile(db_ssl_ca)):
+        import tempfile
+        normalized_ca = db_ssl_ca_content.replace("\\r\\n", "\n").replace("\\n", "\n").strip() + "\n"
+        ca_temp = os.path.join(tempfile.gettempdir(), "stocktrade_aiven_ca.pem")
+        with open(ca_temp, "w", encoding="utf-8") as f:
+            f.write(normalized_ca)
+        db_ssl_ca = ca_temp
+
+    if db_ssl_ca and not os.path.isfile(db_ssl_ca):
+        raise FileNotFoundError(
+            f"DB_SSL_CA file not found at '{db_ssl_ca}'. On Render/cloud hosts, remove DB_SSL_CA "
+            "and set DB_SSL_CA_CONTENT to the contents of aiven-ca.pem, or upload aiven-ca.pem as a Secret File."
+        )
 
     query_params = {"charset": "utf8mb4"}
 
