@@ -3,6 +3,9 @@
 -- sp_execute_trade: Authoritative Atomic Trade Execution with Strict Row Locking
 -- ==============================================================================
 
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+SET SESSION collation_connection = 'utf8mb4_unicode_ci';
+
 DELIMITER $$
 
 DROP PROCEDURE IF EXISTS sp_execute_trade$$
